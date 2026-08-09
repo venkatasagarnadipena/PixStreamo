@@ -1,6 +1,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
     <style name="Theme.Mega_stream" parent="android:Theme.Material.NoActionBar">
-        <!-- Customize your theme here. -->
+        <!-- Optimized for TV: Prevent unnecessary resource loading -->
+        <item name="android:windowBackground">@android:color/black</item>
     </style>
 </resources>

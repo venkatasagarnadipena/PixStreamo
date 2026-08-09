@@ -19,6 +19,17 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         if (oldVersion < 2) {
             db.execSQL(CREATE_TABLE_SETTINGS)
         }
+        if (oldVersion < 3) {
+            // Version 3 adds support for session timestamps
+        }
+    }
+
+    fun updateLastActiveTime() {
+        saveSetting("last_active_time", System.currentTimeMillis().toString())
+    }
+
+    fun getLastActiveTime(): Long {
+        return getSetting("last_active_time", "0").toLong()
     }
 
     fun mergeFolders(newFolders: List<Pair<String, String>>) {
@@ -49,7 +60,11 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         } catch (e: Exception) {
             Log.e("DatabaseHelper", "Error merging folders", e)
         } finally {
-            db.endTransaction()
+            try {
+                db.endTransaction()
+            } catch (e: Exception) {
+                Log.e("DatabaseHelper", "Error ending transaction", e)
+            }
         }
     }
 
@@ -57,16 +72,21 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         val folders = mutableListOf<Folder>()
         val db = this.readableDatabase
         val cursor = db.rawQuery("SELECT * FROM $TABLE_FOLDERS", null)
-        if (cursor.moveToFirst()) {
-            do {
-                folders.add(Folder(
-                    cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ID)),
-                    cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_NAME)),
-                    cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_URL))
-                ))
-            } while (cursor.moveToNext())
+        try {
+            if (cursor.moveToFirst()) {
+                do {
+                    folders.add(Folder(
+                        cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ID)),
+                        cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_NAME)),
+                        cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_URL))
+                    ))
+                } while (cursor.moveToNext())
+            }
+        } catch (e: Exception) {
+            Log.e("DatabaseHelper", "Error reading folders", e)
+        } finally {
+            cursor.close()
         }
-        cursor.close()
         return folders
     }
 
@@ -76,21 +96,30 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             put(COLUMN_SETTING_KEY, key)
             put(COLUMN_SETTING_VAL, value)
         }
-        db.replace(TABLE_SETTINGS, null, values)
+        try {
+            db.replace(TABLE_SETTINGS, null, values)
+        } catch (e: Exception) {
+            Log.e("DatabaseHelper", "Error saving setting $key", e)
+        }
     }
 
     fun getSetting(key: String, defaultValue: String): String {
         val db = this.readableDatabase
+        var result = defaultValue
         val cursor = db.query(
             TABLE_SETTINGS, arrayOf(COLUMN_SETTING_VAL),
             "$COLUMN_SETTING_KEY = ?", arrayOf(key),
             null, null, null
         )
-        var result = defaultValue
-        if (cursor.moveToFirst()) {
-            result = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_SETTING_VAL))
+        try {
+            if (cursor.moveToFirst()) {
+                result = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_SETTING_VAL))
+            }
+        } catch (e: Exception) {
+            Log.e("DatabaseHelper", "Error getting setting $key", e)
+        } finally {
+            cursor.close()
         }
-        cursor.close()
         return result
     }
 
@@ -100,6 +129,12 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     fun completeSetup() {
         saveSetting("setup_complete", "true")
+    }
+
+    fun resetAllData() {
+        val db = this.writableDatabase
+        db.delete(TABLE_FOLDERS, null, null)
+        db.delete(TABLE_SETTINGS, null, null)
     }
 
     companion object {

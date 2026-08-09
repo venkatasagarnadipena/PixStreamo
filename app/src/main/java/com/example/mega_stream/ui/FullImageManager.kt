@@ -1,15 +1,23 @@
 package com.example.mega_stream.ui
 
+import android.view.KeyEvent
 import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -18,28 +26,67 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.mega_stream.data.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.withContext
 import java.io.File
-import android.view.KeyEvent
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.input.key.*
-import kotlinx.coroutines.flow.filter
+
+@Composable
+fun DribbbleLoader(modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "dribbble_loader")
+
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = LinearEasing)
+        ),
+        label = "rotation"
+    )
+
+    val sweepAngle by infiniteTransition.animateFloat(
+        initialValue = 20f,
+        targetValue = 280f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing), // SLOWER FOR CPU
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "sweep"
+    )
+
+    Canvas(modifier = modifier.size(80.dp)) {
+        drawArc(
+            color = Color.Yellow,
+            startAngle = rotation,
+            sweepAngle = sweepAngle,
+            useCenter = false,
+            style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
+        )
+    }
+}
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun FullMediaScreen(
-    initialHandle: String, 
+    initialHandle: String,
     initialIndex: Int,
     folderUrl: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onHome: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    
+
     // BACKEND ENGINE STATE
     val currentIndex by StreamingWorker.currentIndex.collectAsState()
     val isSlideshowActive by StreamingWorker.isSlideshowActive.collectAsState()
-    
+    val statusLabel by StreamingWorker.statusLabel.collectAsState()
+    val isWindowReady by StreamingWorker.isWindowReady.collectAsState()
+
+    // Debugging logs
+    LaunchedEffect(statusLabel, isSlideshowActive) {
+        android.util.Log.d("FullMediaScreen", "statusLabel: $statusLabel, isSlideshowActive: $isSlideshowActive")
+    }
+
     var mediaItems by remember { mutableStateOf(emptyList<SharedMediaItem>()) }
     var currentFile by remember { mutableStateOf<File?>(null) }
     var isWaitingForFile by remember { mutableStateOf(true) }
@@ -54,16 +101,21 @@ fun FullMediaScreen(
         }
         if (result != null) {
             mediaItems = result
-            StreamingWorker.initFolder(context, folderUrl, result, initialIndex)
-            // Ensure slideshow is OFF by default as requested
             StreamingWorker.setSlideshowActive(false)
+            StreamingWorker.initFolder(context, folderUrl, result, initialIndex)
         }
     }
 
     // REACTIVE RENDERER
-    LaunchedEffect(currentIndex, mediaItems) {
+    LaunchedEffect(currentIndex, mediaItems, statusLabel) {
         if (mediaItems.isEmpty()) return@LaunchedEffect
-        
+
+        if (statusLabel == "END_OF_SHOW") {
+            delay(7000)
+            onHome()
+            return@LaunchedEffect
+        }
+
         val item = mediaItems[currentIndex]
         val handleId = item.handle.split("#")[0]
         val file = File(folderCacheDir, "dl_$handleId.jpg")
@@ -83,18 +135,18 @@ fun FullMediaScreen(
                     }
                 }
         }
-        
-        // Re-claim focus whenever index changes
+
         try { focusRequester.requestFocus() } catch (e: Exception) {}
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black) // BLACK BACKGROUND for letterboxing
+            .background(Color(0xFF0A0A0A))
             .focusRequester(focusRequester)
-            .focusable() 
+            .focusable()
             .onKeyEvent { keyEvent ->
+                if (statusLabel == "END_OF_SHOW") return@onKeyEvent true
                 if (keyEvent.type == KeyEventType.KeyDown) {
                     when (keyEvent.nativeKeyEvent.keyCode) {
                         KeyEvent.KEYCODE_DPAD_LEFT -> { StreamingWorker.previous(); true }
@@ -110,62 +162,128 @@ fun FullMediaScreen(
             },
         contentAlignment = Alignment.Center
     ) {
-        // CONTENT DISPLAY: Maintains aspect ratio without stretching
-        Crossfade(targetState = currentFile, label = "image_fade") { file ->
-            if (isWaitingForFile || file == null) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    androidx.compose.material3.CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
-            } else {
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(file)
-                        .memoryCachePolicy(coil.request.CachePolicy.DISABLED)
-                        .diskCachePolicy(coil.request.CachePolicy.DISABLED)
-                        .build(),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit // PRESERVE ASPECT RATIO (No stretching)
+        if (statusLabel == "END_OF_SHOW") {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "End of Show",
+                    style = MaterialTheme.typography.displayMedium,
+                    color = Color.White
                 )
+            }
+        } else if (isSlideshowActive && !isWindowReady) {
+            Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Show will start soon",
+                        style = MaterialTheme.typography.displayMedium,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(48.dp))
+                    DribbbleLoader()
+                }
+            }
+        } else {
+            // CONTENT DISPLAY: Optimized for low-RAM TV
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                if (isWaitingForFile || currentFile == null) {
+                    androidx.compose.material3.CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                } else {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(currentFile)
+                            .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                            .diskCachePolicy(coil.request.CachePolicy.DISABLED)
+                            .bitmapConfig(android.graphics.Bitmap.Config.RGB_565) // MASSIVE RAM SAVING
+                            .allowHardware(true) // GPU ACCELERATED
+                            .crossfade(300) // Hardware-friendly transition
+                            .build(),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit
+                    )
+                }
             }
         }
 
         // ANIMATED SLIDE-DOWN OVERLAY
         AnimatedVisibility(
-            visible = !isSlideshowActive,
+            visible = !isSlideshowActive && statusLabel != "END_OF_SHOW",
             enter = slideInVertically(initialOffsetY = { it / 2 }, animationSpec = tween(600)),
             exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(600)),
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
             Box(
                 modifier = Modifier
-                    .padding(bottom = 40.dp) // Slightly higher than bottom edge
-                    .background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(40.dp))
-                    .padding(horizontal = 24.dp, vertical = 12.dp)
+                    .padding(bottom = 40.dp)
+                    .background(Color(0xFF1A1A1A), CircleShape)
+                    .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                    .padding(start = 8.dp, end = 24.dp, top = 8.dp, bottom = 8.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // START SLIDESHOW CALL-TO-ACTION
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    // START SLIDESHOW BUTTON
                     Button(
                         onClick = { StreamingWorker.toggleSlideshow() },
-                        colors = ButtonDefaults.colors(containerColor = Color.Yellow, contentColor = Color.Black),
-                        modifier = Modifier.height(44.dp)
+                        colors = ButtonDefaults.colors(
+                            containerColor = Color.Yellow,
+                            contentColor = Color.Black
+                        ),
+                        shape = ButtonDefaults.shape(CircleShape),
+                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
                     ) {
-                        Text("▶ START SLIDESHOW", style = MaterialTheme.typography.labelLarge)
+                        Text(
+                            text = "▶ START SLIDESHOW",
+                            style = MaterialTheme.typography.labelLarge
+                        )
                     }
-                    
-                    Spacer(modifier = Modifier.width(32.dp))
-                    
+
                     Text(
-                        text = "${currentIndex + 1} / ${mediaItems.size}", 
+                        text = "${currentIndex + 1} / ${mediaItems.size}",
                         color = Color.White,
                         style = MaterialTheme.typography.labelLarge
                     )
-                    
-                    Spacer(modifier = Modifier.width(32.dp))
-                    
-                    Text(text = "← PREV", color = Color.White.copy(alpha = 0.5f), style = MaterialTheme.typography.labelSmall)
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Text(text = "NEXT →", color = Color.White.copy(alpha = 0.5f), style = MaterialTheme.typography.labelSmall)
+
+                    // ALIGNED NAVIGATION LABELS WITH VERTICAL OFFSET FIX
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "←",
+                                color = Color.White.copy(alpha = 0.7f),
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.offset(y = (-2).dp)
+                            )
+                            Text(
+                                text = "PREV",
+                                color = Color.White.copy(alpha = 0.7f),
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "NEXT",
+                                color = Color.White.copy(alpha = 0.7f),
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                            Text(
+                                text = "→",
+                                color = Color.White.copy(alpha = 0.7f),
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.offset(y = (-2).dp)
+                            )
+                        }
+                    }
                 }
             }
         }

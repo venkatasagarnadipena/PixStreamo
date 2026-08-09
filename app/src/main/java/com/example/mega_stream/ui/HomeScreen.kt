@@ -1,7 +1,10 @@
 package com.example.mega_stream.ui
 
 import android.util.Log
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,7 +23,11 @@ import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun HomeScreen(onFolderSelected: (Folder) -> Unit) {
+fun HomeScreen(
+    onFolderSelected: (Folder) -> Unit,
+    onSettingsSelected: () -> Unit,
+    onCompleteReset: () -> Unit
+) {
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper(context) }
     var folders by remember { mutableStateOf(emptyList<Folder>()) }
@@ -43,14 +50,42 @@ fun HomeScreen(onFolderSelected: (Folder) -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color(0xFF0A0A0A)) // DARKER PREMIUM BLACK
             .onKeyEvent { 
                 Log.d("MegaHomeScreen", "Root Box Key Event: $it")
                 false 
             }
     ) {
-        Column(modifier = Modifier.fillMaxSize().padding(32.dp)) {
-            Text(text = "Your Folders", style = MaterialTheme.typography.displayMedium, color = Color.White)
-            Spacer(modifier = Modifier.height(24.dp))
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 32.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "Your Folders", style = MaterialTheme.typography.displayMedium, color = Color.White)
+                
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // Update Config Button
+                    IconButton(onClick = onSettingsSelected) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = Color.White
+                        )
+                    }
+                    
+                    // Reset Button
+                    Button(
+                        onClick = onCompleteReset,
+                        colors = ButtonDefaults.colors(containerColor = Color(0xFF1E1E1E), contentColor = Color.Gray),
+                        border = ButtonDefaults.border(focusedBorder = Border(androidx.compose.foundation.BorderStroke(2.dp, Color.White)))
+                    ) {
+                        Text("Complete Reset")
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(48.dp)) // MOVED FOLDERS SLIGHTLY DOWNWARD
 
             if (folders.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -59,12 +94,12 @@ fun HomeScreen(onFolderSelected: (Folder) -> Unit) {
             } else {
                 TvLazyVerticalGrid(
                     columns = TvGridCells.Fixed(3),
-                    contentPadding = PaddingValues(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                    contentPadding = PaddingValues(16.dp), // ADDED PADDING TO PREVENT CROPPING
+                    horizontalArrangement = Arrangement.spacedBy(32.dp),
+                    verticalArrangement = Arrangement.spacedBy(32.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    itemsIndexed(folders) { index, folder ->
+                    itemsIndexed(folders, key = { _, folder -> folder.id }) { index, folder ->
                         Card(
                             onClick = { 
                                 Log.d("MegaHomeScreen", "CLICKED: ${folder.name}")
@@ -76,9 +111,13 @@ fun HomeScreen(onFolderSelected: (Folder) -> Unit) {
                                     if (it.isFocused) Log.d("MegaHomeScreen", "FOCUSED: ${folder.name} (index $index)")
                                 }
                                 .then(if (index == 0) Modifier.focusRequester(focusRequester) else Modifier),
-                            scale = CardDefaults.scale(focusedScale = 1.15f),
+                            scale = CardDefaults.scale(focusedScale = 1.1f), // SLIGHTLY REDUCED SCALE TO PREVENT OVERLAP
                             border = CardDefaults.border(
-                                focusedBorder = Border(androidx.compose.foundation.BorderStroke(4.dp, Color.Yellow)) // High contrast yellow for debug
+                                focusedBorder = Border(androidx.compose.foundation.BorderStroke(3.dp, Color.White))
+                            ),
+                            colors = CardDefaults.colors(
+                                containerColor = Color(0xFF1E1E1E), // CLEANER CARD COLOR
+                                focusedContainerColor = Color(0xFF2A2A2A)
                             )
                         ) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

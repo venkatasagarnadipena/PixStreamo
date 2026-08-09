@@ -19,7 +19,7 @@ android {
         vectorDrawables { useSupportLibrary = true }
 
         ndk {
-            // FULL UNIVERSAL SUPPORT: Including x86 for 32-bit emulators
+            // UNIVERSAL SUPPORT: Including x86 and x86_64 for emulators, plus all mobile/TV architectures.
             abiFilters += listOf("x86", "x86_64", "arm64-v8a", "armeabi-v7a")
         }
     }
@@ -29,6 +29,9 @@ android {
             isMinifyEnabled = true 
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            ndk {
+                debugSymbolLevel = "none"
+            }
         }
         debug {
             isMinifyEnabled = false
@@ -81,6 +84,10 @@ dependencies {
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.material3)
+
+    // ADDED: Extended Material Icons (Required for Folder, Link, SdCard, etc.)
+    implementation("androidx.compose.material:material-icons-extended")
+
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.tv.foundation)
     implementation(libs.androidx.tv.material)

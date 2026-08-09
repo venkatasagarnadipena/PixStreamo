@@ -1,5 +1,6 @@
 package com.example.mega_stream.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -31,7 +32,6 @@ fun FolderBrowserScreen(
     var isLoading by remember { mutableStateOf(true) }
     val focusRequester = remember { FocusRequester() }
     
-    val statusLabel by StreamingWorker.statusLabel.collectAsState()
     val backendIndex by StreamingWorker.currentIndex.collectAsState()
 
     // 10s Cleanup Worker
@@ -64,15 +64,9 @@ fun FolderBrowserScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A)).padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(text = folderName, style = MaterialTheme.typography.headlineMedium, color = Color.White)
-            if (statusLabel.isNotEmpty() && !statusLabel.startsWith("Stopped")) {
-                Spacer(modifier = Modifier.width(16.dp))
-                androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = statusLabel, style = MaterialTheme.typography.labelSmall, color = Color.Cyan)
-            }
         }
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -88,7 +82,7 @@ fun FolderBrowserScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                itemsIndexed(mediaItems) { index, item ->
+                itemsIndexed(mediaItems, key = { _, item -> item.handle }) { index, item ->
                     StreamingImageCard(
                         item = item,
                         folderUrl = folderUrl,

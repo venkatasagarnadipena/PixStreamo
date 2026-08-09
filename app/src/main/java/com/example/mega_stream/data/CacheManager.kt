@@ -85,6 +85,22 @@ object CacheManager {
     }
 
     /**
+     * FULL SYSTEM PURGE:
+     * Deletes the entire mega_stream_v3 directory.
+     */
+    fun deleteAllCache(context: Context) {
+        try {
+            val baseDir = getOptimalCacheDir(context)
+            if (baseDir.exists()) {
+                baseDir.deleteRecursively()
+                Log.d("CacheManager", "Full cache purge complete.")
+            }
+        } catch (e: Exception) {
+            Log.e("CacheManager", "Failed to purge all cache", e)
+        }
+    }
+
+    /**
      * SURGICAL PRUNING:
      * Deletes all dl_*.jpg files in the folder except for those in the keepHandles set.
      */

@@ -34,7 +34,16 @@ class MainActivity : ComponentActivity() {
         window.decorView.isFocusableInTouchMode = true
         window.decorView.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
 
-        MegaManager.init(this)
+        val dbHelper = DatabaseHelper(this)
+        val lastActive = dbHelper.getLastActiveTime()
+        val currentTime = System.currentTimeMillis()
+        
+        // 15 Minutes = 15 * 60 * 1000 = 900,000 ms
+        if (lastActive > 0 && (currentTime - lastActive) > 900000) {
+            com.example.mega_stream.data.CacheManager.deleteAllCache(this)
+        }
+
+        MegaManager.init(applicationContext)
         
         setContent {
             Mega_streamTheme {
@@ -52,6 +61,11 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         window.decorView.requestFocus()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        DatabaseHelper(this).updateLastActiveTime()
     }
 }
 
@@ -102,11 +116,23 @@ fun AppNavigation() {
         }
         
         composable("home") {
-            HomeScreen(onFolderSelected = { folder ->
-                val encodedName = URLEncoder.encode(folder.name, StandardCharsets.UTF_8.toString())
-                val encodedUrl = URLEncoder.encode(folder.url, StandardCharsets.UTF_8.toString())
-                navController.navigate("browser/$encodedName/$encodedUrl")
-            })
+            HomeScreen(
+                onFolderSelected = { folder ->
+                    val encodedName = URLEncoder.encode(folder.name, StandardCharsets.UTF_8.toString())
+                    val encodedUrl = URLEncoder.encode(folder.url, StandardCharsets.UTF_8.toString())
+                    navController.navigate("browser/$encodedName/$encodedUrl")
+                },
+                onSettingsSelected = {
+                    navController.navigate("onboarding_menu")
+                },
+                onCompleteReset = {
+                    dbHelper.resetAllData()
+                    com.example.mega_stream.data.CacheManager.deleteAllCache(context)
+                    navController.navigate("welcome") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
         }
         
         composable(
@@ -146,7 +172,12 @@ fun AppNavigation() {
                 initialHandle = handle,
                 initialIndex = index,
                 folderUrl = folderUrl,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onHome = {
+                    navController.navigate("home") {
+                        popUpTo("home") { inclusive = true }
+                    }
+                }
             )
         }
     }

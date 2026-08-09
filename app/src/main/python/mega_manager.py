@@ -29,6 +29,7 @@ class MegaManager:
         from mega import Mega
         self.mega = Mega()
         self.current_folder_id = None
+        self.session = requests.Session() # REUSE SESSION FOR SPEED
 
     def decrypt_attr(self, attr_data, key):
         try:
@@ -42,7 +43,6 @@ class MegaManager:
         return {}
 
     def list_shared_folder(self, folder_url):
-        sys.stderr.write(f"ROOT_CAUSE: list_shared_folder start: {folder_url}\n")
         try:
             if "/folder/" not in folder_url: return {"status": "error"}
             parts = folder_url.split("/folder/")[1].split("#")
@@ -51,7 +51,7 @@ class MegaManager:
             self.current_folder_id = folder_id
             
             api_url = f"https://g.api.mega.co.nz/cs?id=100&n={folder_id}"
-            r = requests.post(api_url, json=[{"a": "f", "c": 1, "r": 1}], timeout=20).json()
+            r = self.session.post(api_url, json=[{"a": "f", "c": 1, "r": 1}], timeout=15).json()
             if not r or "f" not in r[0]: return {"status": "error"}
             
             node_list = []
@@ -69,13 +69,8 @@ class MegaManager:
                         attr_key = bytes([dec_k[i] ^ dec_k[i+16] for i in range(16)]) if len(dec_k) == 32 else dec_k[:16]
                         attrs = self.decrypt_attr(node.get("a"), attr_key)
                         name = attrs.get("n", "Unknown")
-                        is_img = False
-                        n_low = name.lower()
-                        for ext in img_exts:
-                            if n_low.endswith(ext):
-                                is_img = True
-                                break
-                        if is_img:
+
+                        if any(name.lower().endswith(ext) for ext in img_exts):
                             b64_k = base64.urlsafe_b64encode(dec_k).decode('utf-8').rstrip('=')
                             node_list.append({"h": f"{node['h']}#{b64_k}", "name": name, "type": "image"})
                     except: continue
@@ -83,13 +78,9 @@ class MegaManager:
         except: return {"status": "error"}
 
     def download_file(self, id_key, dest_path):
-        """
-        ROOT_CAUSE TRACE: Step-by-step byte-level trace.
-        """
         try:
             import os
             h = id_key.split("#")[0]
-            sys.stderr.write(f"ROOT_CAUSE: download_file start for {h}\n")
 
             if "mega.nz/file/" in id_key:
                 fn = "config.json" if "AhQR3AxC" in id_key else None
@@ -99,23 +90,17 @@ class MegaManager:
             h, k_b64 = id_key.split("#")
             node_key = base64_url_decode(k_b64)
             
-            # API Link Request
             api_url = f"https://g.api.mega.co.nz/cs?id=200"
             if self.current_folder_id: api_url += f"&n={self.current_folder_id}"
             
             payload = [{"a": "g", "g": 1, "n": h}]
-            resp_raw = requests.post(api_url, json=payload, timeout=20).json()
+            resp_raw = self.session.post(api_url, json=payload, timeout=15).json()
             try: resp = resp_raw[0]
             except: resp = resp_raw
             
-            if 'g' not in resp:
-                sys.stderr.write(f"ROOT_CAUSE ERROR: API link denied for {h}\n")
-                return {"status": "error"}
+            if 'g' not in resp: return {"status": "error"}
             
             file_url = resp['g']
-            sys.stderr.write(f"ROOT_CAUSE: Got URL: {file_url[:40]}...\n")
-
-            # Decryption Params
             key_bytes = bytes([node_key[i] ^ node_key[i+16] for i in range(16)])
             iv = node_key[16:24] + b'\x00' * 8
             iv_val = 0
@@ -123,24 +108,17 @@ class MegaManager:
             from Crypto.Util import Counter
             decryptor = AES.new(key_bytes, AES.MODE_CTR, counter=Counter.new(128, initial_value=iv_val))
             
-            # Streaming Download
-            r = requests.get(file_url, stream=True, timeout=30)
+            r = self.session.get(file_url, stream=True, timeout=20)
             r.raise_for_status()
             
             out_file = os.path.join(dest_path, f"dl_{h}.jpg")
-            written = 0
             with open(out_file, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=128*1024):
+                for chunk in r.iter_content(chunk_size=64*1024): # SMALLER CHUNKS FOR 1GB RAM
                     if chunk:
-                        dec = decryptor.decrypt(chunk)
-                        f.write(dec)
-                        written += len(dec)
+                        f.write(decryptor.decrypt(chunk))
             
-            sys.stderr.write(f"ROOT_CAUSE SUCCESS: Saved {out_file}, Size: {written} bytes\n")
             return {"status": "success"}
-        except Exception as e:
-            sys.stderr.write(f"ROOT_CAUSE CRITICAL: {str(e)}\n")
-            return {"status": "error"}
+        except: return {"status": "error"}
 
 manager = MegaManager()
 def list_shared_folder(u): return json.dumps(manager.list_shared_folder(u))

@@ -83,4 +83,23 @@ object CacheManager {
             folderDir.deleteRecursively()
         }
     }
+
+    /**
+     * SURGICAL PRUNING:
+     * Deletes all dl_*.jpg files in the folder except for those in the keepHandles set.
+     */
+    fun pruneCacheExcept(folderDir: File, keepHandles: Set<String>) {
+        if (!folderDir.exists()) return
+        
+        val files = folderDir.listFiles()?.filter { it.isFile && it.name.startsWith("dl_") } ?: return
+        val keepIds = keepHandles.map { it.split("#")[0] }.toSet()
+
+        for (file in files) {
+            val fileId = file.name.removePrefix("dl_").removeSuffix(".jpg")
+            if (fileId !in keepIds) {
+                file.delete()
+                Log.d("CacheManager", "Pruned: ${file.name}")
+            }
+        }
+    }
 }

@@ -100,7 +100,7 @@ fun FolderBrowserScreen(
                             // Update engine index when scrolling in grid to prioritize visible items
                             StreamingWorker.jumpTo(index, pause = false) 
                         },
-                        modifier = if (index == backendIndex) Modifier.focusRequester(focusRequester) else Modifier
+                        modifier = Modifier
                     )
                 }
             }

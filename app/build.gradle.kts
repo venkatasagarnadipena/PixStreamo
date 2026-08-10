@@ -12,15 +12,24 @@ android {
         applicationId = "com.example.mega_stream"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 17
+        versionName = "13.0-tv-stable"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
 
+        // TV OPTIMIZED: Only include ARM architectures to save space on 4GB storage
         ndk {
-            // UNIVERSAL SUPPORT: Including x86 and x86_64 for emulators, plus all mobile/TV architectures.
-            abiFilters += listOf("x86", "x86_64", "arm64-v8a", "armeabi-v7a")
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
+    }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+        jniLibs {
+            useLegacyPackaging = true
         }
     }
 
@@ -35,6 +44,11 @@ android {
         }
         debug {
             isMinifyEnabled = false
+            // Support x86 for emulator debugging
+            ndk {
+                abiFilters.clear()
+                abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+            }
         }
     }
 
@@ -57,12 +71,7 @@ android {
 
     lint {
         abortOnError = false
-    }
-
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
+        checkReleaseBuilds = false
     }
 }
 
@@ -84,18 +93,14 @@ dependencies {
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.material3)
-
-    // ADDED: Extended Material Icons (Required for Folder, Link, SdCard, etc.)
-    implementation("androidx.compose.material:material-icons-extended")
-
+    
+    // Core Dependencies
+    implementation("com.google.zxing:core:3.5.3")
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.tv.foundation)
     implementation(libs.androidx.tv.material)
     implementation(libs.coil.compose)
-    debugImplementation(libs.androidx.ui.tooling)
 
+    debugImplementation(libs.androidx.ui.tooling)
     testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
 }

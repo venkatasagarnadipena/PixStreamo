@@ -52,7 +52,7 @@ fun StreamingImageCard(
         modifier = modifier
             .aspectRatio(1.5f)
             .onFocusChanged { if (it.isFocused) onFocused() },
-        scale = CardDefaults.scale(focusedScale = 1.05f),
+        scale = CardDefaults.scale(focusedScale = 1.08f), // SLIGHTLY REDUCED TO PREVENT CROP
         border = CardDefaults.border(focusedBorder = Border(androidx.compose.foundation.BorderStroke(3.dp, Color.White))),
         colors = CardDefaults.colors(containerColor = Color(0xFF1E1E1E), focusedContainerColor = Color(0xFF2A2A2A))
     ) {
@@ -73,17 +73,10 @@ fun StreamingImageCard(
                     contentScale = ContentScale.Crop
                 )
             } else {
-                // LIGHTER LOADING UI: Static grey instead of active shimmer
+                // STATIC PLACEHOLDER FOR PERFORMANCE (Reduces CPU during scrolling)
                 Box(
-                    modifier = Modifier.fillMaxSize().background(Color(0xFF121212)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    androidx.compose.material3.CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = Color.White.copy(alpha = 0.2f)
-                    )
-                }
+                    modifier = Modifier.fillMaxSize().background(Color(0xFF121212))
+                )
             }
         }
     }

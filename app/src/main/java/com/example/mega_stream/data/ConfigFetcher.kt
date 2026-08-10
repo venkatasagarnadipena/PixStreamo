@@ -5,51 +5,53 @@ import android.util.Log
 import com.example.mega_stream.data.local.DatabaseHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.json.JSONArray
-import java.io.File
+import org.json.JSONObject
 
-class ConfigFetcher(private val context: Context) {
-    private val dbHelper = DatabaseHelper(context)
+object ConfigFetcher {
+    private val client = OkHttpClient()
 
-    // DEFAULT FALLBACK URL
-    private val DEFAULT_JSON_URL = "https://mega.nz/file/AhQR3AxC#ZNvUcirmWJeqlTQAjsODb0L0teZL87vdNGOxf_l-NxY"
-
-    /**
-     * DYNAMIC SYNC:
-     * Reads URL from DB settings, falls back to hardcoded default if empty/invalid.
-     */
-    suspend fun fetchAndSync(): Boolean = withContext(Dispatchers.IO) {
-        val userUrl = dbHelper.getSetting("config_url", DEFAULT_JSON_URL)
-        val finalUrl = if (userUrl.isEmpty()) DEFAULT_JSON_URL else userUrl
-        
-        Log.d("ConfigFetcher", "Starting sync from: $finalUrl")
-        
+    suspend fun fetchAndSync(context: Context, url: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            val cacheDir = context.cacheDir
-            val expectedFile = File(cacheDir, "config.json")
-            if (expectedFile.exists()) expectedFile.delete()
-
-            // Call Python download with the configured URL
-            val success = MegaManager.downloadFile(finalUrl, cacheDir.absolutePath)
+            val request = Request.Builder().url(url).build()
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) return@withContext false
             
-            if (success && expectedFile.exists()) {
-                val body = expectedFile.readText()
-                val jsonArray = JSONArray(body)
-                val folders = mutableListOf<Pair<String, String>>()
-                
-                for (i in 0 until jsonArray.length()) {
-                    val obj = jsonArray.getJSONObject(i)
-                    folders.add(Pair(obj.getString("folder"), obj.getString("url")))
+            val jsonString = response.body?.string() ?: return@withContext false
+            val dbHelper = DatabaseHelper(context)
+            val folderPairs = mutableListOf<Pair<String, String>>()
+
+            try {
+                if (jsonString.trim().startsWith("[")) {
+                    val array = JSONArray(jsonString)
+                    for (i in 0 until array.length()) {
+                        val obj = array.getJSONObject(i)
+                        folderPairs.add(Pair(obj.getString("name"), obj.getString("url")))
+                    }
+                } else {
+                    val obj = JSONObject(jsonString)
+                    val keys = obj.keys()
+                    while (keys.hasNext()) {
+                        val key = keys.next()
+                        folderPairs.add(Pair(key, obj.getString(key)))
+                    }
                 }
-                
-                dbHelper.mergeFolders(folders)
-                expectedFile.delete()
+            } catch (e: Exception) {
+                Log.e("ConfigFetcher", "JSON Parsing failed", e)
+                return@withContext false
+            }
+
+            if (folderPairs.isNotEmpty()) {
+                dbHelper.mergeFolders(folderPairs)
+                dbHelper.saveSetting("config_url", url)
                 return@withContext true
             }
+            false
         } catch (e: Exception) {
-            Log.e("ConfigFetcher", "Sync Error: ${e.message}")
+            Log.e("ConfigFetcher", "Fetch error", e)
+            false
         }
-        
-        return@withContext dbHelper.getAllFolders().size > 0
     }
 }

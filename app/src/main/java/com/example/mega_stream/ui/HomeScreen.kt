@@ -3,12 +3,18 @@ package com.example.mega_stream.ui
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.*
 import androidx.tv.foundation.lazy.grid.*
@@ -23,9 +29,50 @@ import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
+fun HeaderButton(
+    text: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    
+    Button(
+        onClick = onClick,
+        modifier = modifier.onFocusChanged { isFocused = it.isFocused },
+        scale = ButtonDefaults.scale(focusedScale = 1.1f),
+        colors = ButtonDefaults.colors(
+            containerColor = Color(0xFF1E1E1E),
+            contentColor = Color.White,
+            focusedContainerColor = Color.White,
+            focusedContentColor = Color.Black
+        ),
+        border = ButtonDefaults.border(focusedBorder = Border(androidx.compose.foundation.BorderStroke(2.dp, Color.White))),
+        shape = ButtonDefaults.shape(RoundedCornerShape(12.dp)),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center // Content alignment inside button
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = if (isFocused) Color.Black else Color.White
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(text = text, style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
 fun HomeScreen(
     onFolderSelected: (Folder) -> Unit,
     onSettingsSelected: () -> Unit,
+    onSyncSelected: () -> Unit,
     onCompleteReset: () -> Unit
 ) {
     val context = LocalContext.current
@@ -64,24 +111,31 @@ fun HomeScreen(
             ) {
                 Text(text = "Your Folders", style = MaterialTheme.typography.displayMedium, color = Color.White)
                 
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    // Update Config Button
-                    IconButton(onClick = onSettingsSelected) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings",
-                            tint = Color.White
-                        )
-                    }
+                Row(
+                    modifier = Modifier.wrapContentWidth(), // Ensure it doesn't take full width
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Sync Button
+                    HeaderButton(
+                        text = "Sync",
+                        icon = Icons.Default.Refresh,
+                        onClick = onSyncSelected
+                    )
+
+                    // Settings Button
+                    HeaderButton(
+                        text = "Setup",
+                        icon = Icons.Default.Settings,
+                        onClick = onSettingsSelected
+                    )
                     
                     // Reset Button
-                    Button(
-                        onClick = onCompleteReset,
-                        colors = ButtonDefaults.colors(containerColor = Color(0xFF1E1E1E), contentColor = Color.Gray),
-                        border = ButtonDefaults.border(focusedBorder = Border(androidx.compose.foundation.BorderStroke(2.dp, Color.White)))
-                    ) {
-                        Text("Complete Reset")
-                    }
+                    HeaderButton(
+                        text = "Reset",
+                        icon = Icons.Default.Delete,
+                        onClick = onCompleteReset
+                    )
                 }
             }
 
@@ -121,9 +175,22 @@ fun HomeScreen(
                             )
                         ) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(text = "📁", style = MaterialTheme.typography.displaySmall)
-                                    Text(text = folder.name, style = MaterialTheme.typography.headlineSmall, color = Color.White)
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.List,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(48.dp),
+                                        tint = Color.White.copy(alpha = 0.8f)
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = folder.name,
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        color = Color.White
+                                    )
                                 }
                             }
                         }

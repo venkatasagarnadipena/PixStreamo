@@ -1,30 +1,67 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:pathData="M31,63.928c0,0 6.4,-11 12.1,-13.1c7.2,-2.6 26,-1.4 26,-1.4l38.1,38.1L107,108.928l-32,-1L31,63.928z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:endX="85.84757"
-                android:endY="92.4963"
-                android:startX="42.9492"
-                android:startY="49.59793"
-                android:type="linear">
-                <item
-                    android:color="#44000000"
-                    android:offset="0.0" />
-                <item
-                    android:color="#00000000"
-                    android:offset="1.0" />
-            </gradient>
-        </aapt:attr>
-    </path>
-    <path
-        android:fillColor="#FFFFFF"
-        android:fillType="nonZero"
-        android:pathData="M65.3,45.828l3.8,-6.6c0.2,-0.4 0.1,-0.9 -0.3,-1.1c-0.4,-0.2 -0.9,-0.1 -1.1,0.3l-3.9,6.7c-6.3,-2.8 -13.4,-2.8 -19.7,0l-3.9,-6.7c-0.2,-0.4 -0.7,-0.5 -1.1,-0.3C38.8,38.328 38.7,38.828 38.9,39.228l3.8,6.6C36.2,49.428 31.7,56.028 31,63.928h46C76.3,56.028 71.8,49.428 65.3,45.828zM43.4,57.328c-0.8,0 -1.5,-0.5 -1.8,-1.2c-0.3,-0.7 -0.1,-1.5 0.4,-2.1c0.5,-0.5 1.4,-0.7 2.1,-0.4c0.7,0.3 1.2,1 1.2,1.8C45.3,56.528 44.5,57.328 43.4,57.328L43.4,57.328zM64.6,57.328c-0.8,0 -1.5,-0.5 -1.8,-1.2s-0.1,-1.5 0.4,-2.1c0.5,-0.5 1.4,-0.7 2.1,-0.4c0.7,0.3 1.2,1 1.2,1.8C66.5,56.528 65.6,57.328 64.6,57.328L64.6,57.328z"
-        android:strokeWidth="1"
-        android:strokeColor="#00000000" />
+
+    <group
+        android:translateX="13"
+        android:translateY="13"
+        android:scaleX="0.16"
+        android:scaleY="0.16">
+
+        <!-- Main stylized "P" Body (White) -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="
+                M 170,110
+                L 170,180
+                L 215,180
+                L 215,110
+                Z
+
+                M 170,330
+                L 170,410
+                C 170,435 215,435 215,410
+                L 215,330
+                Z
+
+                M 215,110
+                L 330,110
+                C 410,110 445,170 445,235
+                C 445,300 410,360 330,360
+                L 215,360
+                L 215,310
+                L 315,310
+                C 370,310 390,270 390,235
+                C 390,200 370,160 315,160
+                L 215,160
+                Z" />
+
+        <!-- Stylized "Stream" Trails with dots -->
+        <!-- Top Trail -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M 120,215 C 150,215 170,195 200,195 L 245,195 A 10,10 0 1 1 245,215 L 200,215 C 175,215 160,235 130,235 L 120,235 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M 245,215 A 10,10 0 1 1 245,195 A 10,10 0 1 1 245,215 Z" />
+
+        <!-- Middle Trail -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M 120,260 C 160,260 180,240 210,240 L 270,240 A 10,10 0 1 1 270,260 L 210,260 C 185,260 165,280 135,280 L 120,280 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M 270,260 A 10,10 0 1 1 270,240 A 10,10 0 1 1 270,260 Z" />
+
+        <!-- Bottom Trail -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M 120,305 C 145,305 165,285 195,285 L 235,285 A 10,10 0 1 1 235,305 L 195,305 C 175,305 155,325 130,325 L 120,325 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M 235,305 A 10,10 0 1 1 235,285 A 10,10 0 1 1 235,305 Z" />
+    </group>
+
 </vector>

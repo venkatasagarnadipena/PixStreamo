@@ -54,7 +54,7 @@ fun DribbbleLoader(modifier: Modifier = Modifier) {
         label = "sweep"
     )
 
-    Canvas(modifier = modifier.size(80.dp)) {
+    Canvas(modifier = modifier.size(50.dp)) {
         drawArc(
             color = Color.Yellow,
             startAngle = rotation,
@@ -81,11 +81,6 @@ fun FullMediaScreen(
     val isSlideshowActive by StreamingWorker.isSlideshowActive.collectAsState()
     val statusLabel by StreamingWorker.statusLabel.collectAsState()
     val isWindowReady by StreamingWorker.isWindowReady.collectAsState()
-
-    // Debugging logs
-    LaunchedEffect(statusLabel, isSlideshowActive) {
-        android.util.Log.d("FullMediaScreen", "statusLabel: $statusLabel, isSlideshowActive: $isSlideshowActive")
-    }
 
     var mediaItems by remember { mutableStateOf(emptyList<SharedMediaItem>()) }
     var currentFile by remember { mutableStateOf<File?>(null) }
@@ -178,7 +173,7 @@ fun FullMediaScreen(
                         style = MaterialTheme.typography.displayMedium,
                         color = Color.White
                     )
-                    Spacer(modifier = Modifier.height(48.dp))
+                    Spacer(modifier = Modifier.height(70.dp))
                     DribbbleLoader()
                 }
             }
@@ -233,10 +228,12 @@ fun FullMediaScreen(
                         shape = ButtonDefaults.shape(CircleShape),
                         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
                     ) {
-                        Text(
-                            text = "▶ START SLIDESHOW",
-                            style = MaterialTheme.typography.labelLarge
-                        )
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "▶ START SLIDESHOW",
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
                     }
 
                     Text(

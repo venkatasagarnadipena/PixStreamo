@@ -25,32 +25,40 @@ object MegaManager {
     }
 
     fun listSharedFolder(url: String): List<SharedMediaItem> {
-        val py = Python.getInstance()
-        val module = py.getModule("mega_manager")
-        val resultJson = module.callAttr("list_shared_folder", url).toString()
-        val result = JSONObject(resultJson)
-        
-        if (result.getString("status") != "success") return emptyList()
-        
-        val nodesArray = result.getJSONArray("nodes")
-        val itemsList = mutableListOf<SharedMediaItem>()
-        for (i in 0 until nodesArray.length()) {
-            val nodeObj = nodesArray.getJSONObject(i)
-            itemsList.add(SharedMediaItem(
-                handle = nodeObj.getString("h"),
-                name = nodeObj.getString("name"),
-                type = nodeObj.getString("type"),
-                fa = nodeObj.optString("fa", "") // Fix type mismatch by providing empty string fallback
-            ))
+        return try {
+            val py = Python.getInstance()
+            val module = py.getModule("mega_manager")
+            val resultJson = module.callAttr("list_shared_folder", url).toString()
+            val result = JSONObject(resultJson)
+            
+            if (result.getString("status") != "success") return emptyList()
+            
+            val nodesArray = result.getJSONArray("nodes")
+            val itemsList = mutableListOf<SharedMediaItem>()
+            for (i in 0 until nodesArray.length()) {
+                val nodeObj = nodesArray.getJSONObject(i)
+                itemsList.add(SharedMediaItem(
+                    handle = nodeObj.getString("h"),
+                    name = nodeObj.getString("name"),
+                    type = nodeObj.getString("type"),
+                    fa = nodeObj.optString("fa", "")
+                ))
+            }
+            itemsList
+        } catch (e: Exception) {
+            emptyList()
         }
-        return itemsList
     }
 
-    fun downloadFile(url: String, destPath: String): Boolean {
-        val py = Python.getInstance()
-        val module = py.getModule("mega_manager")
-        val resultJson = module.callAttr("download_file", url, destPath).toString()
-        val result = JSONObject(resultJson)
-        return result.getString("status") == "success"
+    fun downloadFile(url: String, destPath: String, filename: String): Boolean {
+        return try {
+            val py = Python.getInstance()
+            val module = py.getModule("mega_manager")
+            val resultJson = module.callAttr("download_file", url, destPath, filename).toString()
+            val result = JSONObject(resultJson)
+            result.getString("status") == "success"
+        } catch (e: Exception) {
+            false
+        }
     }
 }

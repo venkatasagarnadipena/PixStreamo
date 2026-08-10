@@ -26,11 +26,6 @@ object CacheManager {
         return folderDir
     }
 
-    /**
-     * DYNAMIC STORAGE DETECTION:
-     * 1. Try user-defined path from Database.
-     * 2. Fall back to automatic detection (Removable -> Emulated -> Internal).
-     */
     fun getOptimalCacheDir(context: Context): File {
         val dbHelper = DatabaseHelper(context)
         val userPath = dbHelper.getSetting("storage_path", "AUTO")
@@ -45,7 +40,6 @@ object CacheManager {
             Log.w("CacheManager", "User-defined path $userPath is invalid or not writable. Falling back to AUTO.")
         }
 
-        // AUTO DETECTION LOGIC
         val externalFilesDirs = ContextCompat.getExternalFilesDirs(context, null)
         for (dir in externalFilesDirs) {
             if (dir != null) {
@@ -62,19 +56,6 @@ object CacheManager {
         return internalCache
     }
 
-    fun enforceFolderFIFO(folderDir: File) {
-        if (!folderDir.exists()) return
-        val files = folderDir.listFiles()?.filter { it.isFile && it.name.startsWith("dl_") }
-            ?.sortedBy { it.lastModified() }
-        
-        if (files != null && files.size > 30) {
-            val toDelete = 10 
-            for (i in 0 until toDelete) {
-                files[i].delete()
-            }
-        }
-    }
-
     fun clearFolderCache(folderDir: File) {
         if (StreamingWorker.getActiveFolderUrl().hashCode().toString() in folderDir.name) {
             return
@@ -84,10 +65,6 @@ object CacheManager {
         }
     }
 
-    /**
-     * FULL SYSTEM PURGE:
-     * Deletes the entire mega_stream_v3 directory.
-     */
     fun deleteAllCache(context: Context) {
         try {
             val baseDir = getOptimalCacheDir(context)
@@ -100,10 +77,6 @@ object CacheManager {
         }
     }
 
-    /**
-     * SURGICAL PRUNING:
-     * Deletes all dl_*.jpg files in the folder except for those in the keepHandles set.
-     */
     fun pruneCacheExcept(folderDir: File, keepHandles: Set<String>) {
         if (!folderDir.exists()) return
         

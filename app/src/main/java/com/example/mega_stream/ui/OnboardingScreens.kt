@@ -2,18 +2,20 @@ package com.example.mega_stream.ui
 
 import android.os.Environment
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.SdCard
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -32,7 +34,40 @@ import com.example.mega_stream.data.local.DatabaseHelper
 import java.io.File
 
 /**
- * POLISHED WELCOME SCREEN
+ * REUSABLE PREMIUM ACTION BUTTON
+ */
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun OnboardingButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isPrimary: Boolean = true
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier,
+        scale = ButtonDefaults.scale(focusedScale = 1.05f),
+        colors = ButtonDefaults.colors(
+            containerColor = if (isPrimary) Color(0xFF1E1E1E) else Color.Transparent,
+            contentColor = if (isPrimary) Color.White else Color.Gray,
+            focusedContainerColor = Color.White,
+            focusedContentColor = Color.Black
+        ),
+        border = ButtonDefaults.border(
+            focusedBorder = Border(androidx.compose.foundation.BorderStroke(2.dp, Color.White))
+        ),
+        shape = ButtonDefaults.shape(RoundedCornerShape(12.dp)),
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text(text = text, style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+/**
+ * CINEMATIC WELCOME SCREEN
  */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -51,34 +86,28 @@ fun WelcomeScreen(onContinue: () -> Unit) {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "Welcome to PixStreamo",
-                style = MaterialTheme.typography.displayMedium,
+                text = "PixStreamo",
+                style = MaterialTheme.typography.displayLarge,
                 color = Color.White
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "The ultimate media streaming experience for Android TV.",
-                style = MaterialTheme.typography.bodyLarge,
+                text = "Premium media streaming for Android TV",
+                style = MaterialTheme.typography.headlineSmall,
                 color = Color.Gray
             )
-            Spacer(modifier = Modifier.height(48.dp))
-            Button(
+            Spacer(modifier = Modifier.height(64.dp))
+            OnboardingButton(
+                text = "Start Configuration",
                 onClick = onContinue,
-                modifier = Modifier.focusRequester(focusRequester),
-                scale = ButtonDefaults.scale(focusedScale = 1.08f),
-                shape = ButtonDefaults.shape(CircleShape),
-                colors = ButtonDefaults.colors(containerColor = Color(0xFF1E1E1E), contentColor = Color.White),
-                border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Color.White))),
-                contentPadding = PaddingValues(horizontal = 32.dp, vertical = 14.dp)
-            ) {
-                Text("Start Configuration", style = MaterialTheme.typography.labelLarge)
-            }
+                modifier = Modifier.width(300.dp).focusRequester(focusRequester)
+            )
         }
     }
 }
 
 /**
- * MAIN ONBOARDING MENU: Card-based selection
+ * MAIN ONBOARDING MENU
  */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -89,7 +118,7 @@ fun OnboardingMenuScreen(
 ) {
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper(context) }
-    val currentUrl = dbHelper.getSetting("config_url", "Default Link Active")
+    val currentUrl = dbHelper.getSetting("config_url", "Default source active")
     val currentStorage = dbHelper.getSetting("storage_path", "AUTO (Recommended)")
 
     val focusRequester = remember { FocusRequester() }
@@ -102,35 +131,30 @@ fun OnboardingMenuScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF0A0A0A))
-            .padding(horizontal = 56.dp, vertical = 48.dp)
+            .padding(56.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Text("Initial Configuration", style = MaterialTheme.typography.displaySmall, color = Color.White)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Customize your experience or use defaults", color = Color.Gray, style = MaterialTheme.typography.bodyLarge)
+            Text("Configuration", style = MaterialTheme.typography.displayMedium, color = Color.White)
+            Text("Personalize your experience", color = Color.Gray, style = MaterialTheme.typography.bodyLarge)
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(48.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(28.dp)
+                horizontalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                // URL CONFIG CARD
                 ConfigCard(
                     title = "Media Source",
                     subtitle = currentUrl,
-                    icon = Icons.Default.Link,
-                    modifier = Modifier
-                        .weight(1f)
-                        .focusRequester(focusRequester),
+                    icon = Icons.Default.Share,
+                    modifier = Modifier.weight(1f).focusRequester(focusRequester),
                     onClick = onSelectUrl
                 )
 
-                // STORAGE CONFIG CARD
                 ConfigCard(
-                    title = "Storage Location",
+                    title = "Storage",
                     subtitle = currentStorage,
-                    icon = Icons.Default.SdCard,
+                    icon = Icons.Default.Home,
                     modifier = Modifier.weight(1f),
                     onClick = onSelectStorage
                 )
@@ -138,17 +162,11 @@ fun OnboardingMenuScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            Button(
+            OnboardingButton(
+                text = "Finish & Launch",
                 onClick = onFinish,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                scale = ButtonDefaults.scale(focusedScale = 1.08f),
-                shape = ButtonDefaults.shape(CircleShape),
-                colors = ButtonDefaults.colors(containerColor = Color(0xFF1E1E1E), contentColor = Color.White),
-                border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Color.White))),
-                contentPadding = PaddingValues(horizontal = 40.dp, vertical = 14.dp)
-            ) {
-                Text("Finish Setup & Launch", style = MaterialTheme.typography.labelLarge)
-            }
+                modifier = Modifier.align(Alignment.CenterHorizontally).width(300.dp)
+            )
         }
     }
 }
@@ -167,12 +185,12 @@ fun ConfigCard(
     Surface(
         onClick = onClick,
         modifier = modifier
-            .height(200.dp)
+            .height(180.dp)
             .onFocusChanged { isFocused = it.isFocused },
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(20.dp)),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(16.dp)),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
         border = ClickableSurfaceDefaults.border(
-            focusedBorder = Border(BorderStroke(2.5.dp, Color.White))
+            focusedBorder = Border(androidx.compose.foundation.BorderStroke(3.dp, Color.White))
         ),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color(0xFF161616),
@@ -182,29 +200,21 @@ fun ConfigCard(
         )
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(28.dp),
+            modifier = Modifier.padding(24.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = title,
-                tint = if (isFocused) Color.Yellow else Color.White.copy(alpha = 0.8f),
-                modifier = Modifier.size(36.dp)
+                contentDescription = null,
+                tint = if (isFocused) Color.White else Color.Gray,
+                modifier = Modifier.size(32.dp)
             )
-
             Column {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(4.dp))
+                Text(text = title, style = MaterialTheme.typography.headlineSmall)
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (isFocused) Color.White.copy(alpha = 0.9f) else Color.Gray,
+                    color = Color.Gray,
                     maxLines = 1
                 )
             }
@@ -233,21 +243,22 @@ fun SetupUrlScreen(onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF0A0A0A))
-            .padding(64.dp),
-        contentAlignment = Alignment.Center
+            .padding(56.dp)
     ) {
-        Column(modifier = Modifier.width(600.dp)) {
-            Text("Enter Config JSON URL", style = MaterialTheme.typography.headlineMedium, color = Color.White)
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("Leave empty to use the default MEGA source", color = Color.Gray)
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally // CENTERED CONTENT
+        ) {
+            Text("Media Source", style = MaterialTheme.typography.displayMedium, color = Color.White)
+            Text("Enter your Config JSON URL", color = Color.Gray, style = MaterialTheme.typography.bodyLarge)
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(64.dp))
 
             TextField(
                 value = urlText,
                 onValueChange = { urlText = it },
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .width(700.dp) // FIXED WIDTH FOR BETTER CENTERING
                     .focusRequester(focusRequester),
                 placeholder = { Text("https://mega.nz/file/...") },
                 singleLine = true,
@@ -256,33 +267,34 @@ fun SetupUrlScreen(onBack: () -> Unit) {
                     unfocusedContainerColor = Color(0xFF121212),
                     focusedTextColor = Color.White,
                     unfocusedTextColor = Color.Gray,
-                    focusedIndicatorColor = Color.Transparent,
+                    focusedIndicatorColor = Color.White,
                     unfocusedIndicatorColor = Color.Transparent
                 ),
                 shape = RoundedCornerShape(12.dp)
             )
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(48.dp))
 
-            Button(
-                onClick = {
-                    dbHelper.saveSetting("config_url", urlText.trim())
-                    onBack()
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = ButtonDefaults.shape(CircleShape),
-                colors = ButtonDefaults.colors(containerColor = Color(0xFF1E1E1E), contentColor = Color.White),
-                border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Color.White))),
-                contentPadding = PaddingValues(vertical = 14.dp)
-            ) {
-                Text("Save & Go Back", style = MaterialTheme.typography.labelLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                OnboardingButton(
+                    text = "Save & Go Back",
+                    onClick = {
+                        dbHelper.saveSetting("config_url", urlText.trim())
+                        onBack()
+                    }
+                )
+                OnboardingButton(
+                    text = "Cancel",
+                    onClick = onBack,
+                    isPrimary = false
+                )
             }
         }
     }
 }
 
 /**
- * MODERN FOLDER PICKER SCREEN
+ * STORAGE PICKER SCREEN
  */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -303,7 +315,9 @@ fun SetupStorageScreen(onBack: () -> Unit) {
             emptyList()
         }
         fileList = files
-        try { focusRequester.requestFocus() } catch (e: Exception) {}
+        if (fileList.isNotEmpty() || currentDir.parentFile != null) {
+            try { focusRequester.requestFocus() } catch (e: Exception) {}
+        }
     }
 
     BackHandler {
@@ -319,23 +333,25 @@ fun SetupStorageScreen(onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF0A0A0A))
-            .padding(48.dp)
+            .padding(56.dp)
     ) {
-        Column {
-            Text("Select Storage Location", style = MaterialTheme.typography.headlineMedium, color = Color.White)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Path: ${currentDir.absolutePath}", color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
+        Column(modifier = Modifier.fillMaxSize()) {
+            Text("Storage Location", style = MaterialTheme.typography.displayMedium, color = Color.White)
+            Text("Select where to store media cache", color = Color.Gray, style = MaterialTheme.typography.bodyLarge)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Current Path: ${currentDir.absolutePath}", color = Color.White.copy(alpha = 0.5f), style = MaterialTheme.typography.bodySmall)
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
             Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                // DIR LIST
+                // FOLDER LIST
                 LazyColumn(
                     modifier = Modifier.weight(1f).fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(bottom = 32.dp)
                 ) {
-                    item {
-                        FolderItem(
+                    item(key = "up_item") {
+                        FolderRowItem(
                             name = ".. (Go Up)",
                             isUpItem = true,
                             isFocusedDefault = true,
@@ -346,73 +362,49 @@ fun SetupStorageScreen(onBack: () -> Unit) {
                         )
                     }
                     items(fileList, key = { it.absolutePath }) { file ->
-                        FolderItem(
+                        FolderRowItem(
                             name = file.name,
                             isUpItem = false,
                             onClick = { currentDir = file }
                         )
                     }
-
-                    if (fileList.isEmpty() && currentDir.absolutePath != "/storage") {
-                        item {
-                            Text(
-                                "No subfolders found or permission denied.",
-                                color = Color.DarkGray,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
-                    }
                 }
 
                 Spacer(modifier = Modifier.width(48.dp))
 
-                // ACTIONS
+                // ACTION PANEL
                 Column(
-                    modifier = Modifier.width(260.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier = Modifier.width(280.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally // CENTERED ACTIONS
                 ) {
-                    Button(
+                    OnboardingButton(
+                        text = "Select This Folder",
                         onClick = {
                             dbHelper.saveSetting("storage_path", currentDir.absolutePath)
                             onBack()
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = ButtonDefaults.shape(CircleShape),
-                        colors = ButtonDefaults.colors(containerColor = Color(0xFF1E1E1E), contentColor = Color.White),
-                        border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Color.White))),
-                        contentPadding = PaddingValues(vertical = 12.dp)
-                    ) {
-                        Text("Select This Folder", style = MaterialTheme.typography.labelMedium)
-                    }
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-                    Button(
+                    OnboardingButton(
+                        text = "Reset to AUTO",
                         onClick = {
                             dbHelper.saveSetting("storage_path", "AUTO")
                             onBack()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = ButtonDefaults.shape(CircleShape),
-                        colors = ButtonDefaults.colors(containerColor = Color(0xFF141414), contentColor = Color.Gray),
-                        border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Color.White))),
-                        contentPadding = PaddingValues(vertical = 12.dp)
-                    ) {
-                        Text("Reset to AUTO", style = MaterialTheme.typography.labelMedium)
-                    }
+                        isPrimary = false
+                    )
 
                     Spacer(modifier = Modifier.weight(1f))
 
-                    OutlinedButton(
+                    OnboardingButton(
+                        text = "Back to Menu",
                         onClick = onBack,
                         modifier = Modifier.fillMaxWidth(),
-                        shape = ButtonDefaults.shape(CircleShape),
-                        border = ButtonDefaults.border(
-                            border = Border(BorderStroke(1.dp, Color.Gray)),
-                            focusedBorder = Border(BorderStroke(2.dp, Color.White))
-                        ),
-                        contentPadding = PaddingValues(vertical = 12.dp)
-                    ) {
-                        Text("Back to Menu", color = Color.White, style = MaterialTheme.typography.labelMedium)
-                    }
+                        isPrimary = false
+                    )
                 }
             }
         }
@@ -421,7 +413,7 @@ fun SetupStorageScreen(onBack: () -> Unit) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun FolderItem(
+fun FolderRowItem(
     name: String,
     isUpItem: Boolean = false,
     isFocusedDefault: Boolean = false,
@@ -442,10 +434,14 @@ fun FolderItem(
             .onFocusChanged { isFocused = it.isFocused },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
-        border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Color.White))),
+        border = ClickableSurfaceDefaults.border(
+            focusedBorder = Border(androidx.compose.foundation.BorderStroke(2.dp, Color.White))
+        ),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color(0xFF141414),
-            focusedContainerColor = Color(0xFF262626)
+            focusedContainerColor = Color.White,
+            contentColor = Color.White,
+            focusedContentColor = Color.Black
         )
     ) {
         Row(
@@ -453,17 +449,13 @@ fun FolderItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = if (isUpItem) Icons.Default.ArrowUpward else Icons.Default.Folder,
+                imageVector = if (isUpItem) Icons.Default.KeyboardArrowUp else Icons.Default.Add,
                 contentDescription = null,
-                tint = if (isFocused) Color.Yellow else Color.White.copy(alpha = 0.8f),
+                tint = if (isFocused) Color.Black else Color.White.copy(alpha = 0.6f),
                 modifier = Modifier.size(24.dp)
             )
             Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                text = name,
-                color = Color.White,
-                style = MaterialTheme.typography.bodyLarge
-            )
+            Text(text = name, style = MaterialTheme.typography.bodyLarge)
         }
     }
 }

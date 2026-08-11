@@ -1,8 +1,8 @@
-package com.example.mega_stream.data
+package com.example.mega_stream.core.data
 
 import android.content.Context
 import android.util.Log
-import com.example.mega_stream.data.local.DatabaseHelper
+import com.example.mega_stream.core.local.DatabaseHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray

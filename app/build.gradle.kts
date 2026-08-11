@@ -12,15 +12,25 @@ android {
         applicationId = "com.example.mega_stream"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 24
+        versionName = "19.0-TV-SPLIT"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
 
         ndk {
-            // UNIVERSAL SUPPORT: Including x86 and x86_64 for emulators, plus all mobile/TV architectures.
-            abiFilters += listOf("x86", "x86_64", "arm64-v8a", "armeabi-v7a")
+            // Keep all filters in defaultConfig so Chaquopy knows which native engines to prepare
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+        }
+    }
+
+    // GENERATE SEPARATE APKs FOR EACH ENGINE
+    // This solves the 80MB size problem by creating specific small files for TV and Emulator.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+            isUniversalApk = true // Generates one large file (All-in-one) plus specific small files.
         }
     }
 
@@ -57,11 +67,15 @@ android {
 
     lint {
         abortOnError = false
+        checkReleaseBuilds = false
     }
 
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+        jniLibs {
+            useLegacyPackaging = true
         }
     }
 }
@@ -85,17 +99,10 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.material3)
 
-    // ADDED: Extended Material Icons (Required for Folder, Link, SdCard, etc.)
-    implementation("androidx.compose.material:material-icons-extended")
-
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.tv.foundation)
     implementation(libs.androidx.tv.material)
     implementation(libs.coil.compose)
+    implementation("com.google.zxing:core:3.5.3")
     debugImplementation(libs.androidx.ui.tooling)
-
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
 }

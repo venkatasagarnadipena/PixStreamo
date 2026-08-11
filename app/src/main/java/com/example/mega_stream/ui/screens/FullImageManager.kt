@@ -1,9 +1,8 @@
-package com.example.mega_stream.ui
+package com.example.mega_stream.ui.screens
 
 import android.view.KeyEvent
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
@@ -15,55 +14,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.example.mega_stream.data.*
+import com.example.mega_stream.R
+import com.example.mega_stream.core.data.*
+import com.example.mega_stream.ui.components.DribbbleLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.withContext
 import java.io.File
-
-@Composable
-fun DribbbleLoader(modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "dribbble_loader")
-
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing)
-        ),
-        label = "rotation"
-    )
-
-    val sweepAngle by infiniteTransition.animateFloat(
-        initialValue = 20f,
-        targetValue = 280f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = FastOutSlowInEasing), // SLOWER FOR CPU
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "sweep"
-    )
-
-    Canvas(modifier = modifier.size(80.dp)) {
-        drawArc(
-            color = Color.Yellow,
-            startAngle = rotation,
-            sweepAngle = sweepAngle,
-            useCenter = false,
-            style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
-        )
-    }
-}
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -76,16 +42,10 @@ fun FullMediaScreen(
 ) {
     val context = LocalContext.current
 
-    // BACKEND ENGINE STATE
     val currentIndex by StreamingWorker.currentIndex.collectAsState()
     val isSlideshowActive by StreamingWorker.isSlideshowActive.collectAsState()
     val statusLabel by StreamingWorker.statusLabel.collectAsState()
     val isWindowReady by StreamingWorker.isWindowReady.collectAsState()
-
-    // Debugging logs
-    LaunchedEffect(statusLabel, isSlideshowActive) {
-        android.util.Log.d("FullMediaScreen", "statusLabel: $statusLabel, isSlideshowActive: $isSlideshowActive")
-    }
 
     var mediaItems by remember { mutableStateOf(emptyList<SharedMediaItem>()) }
     var currentFile by remember { mutableStateOf<File?>(null) }
@@ -94,7 +54,6 @@ fun FullMediaScreen(
     val focusRequester = remember { FocusRequester() }
     val folderCacheDir = remember(folderUrl) { CacheManager.getFolderCacheDir(context, folderUrl) }
 
-    // INITIALIZATION
     LaunchedEffect(folderUrl) {
         val result = withContext(Dispatchers.IO) {
             try { MegaManager.listSharedFolder(folderUrl) } catch (e: Exception) { null }
@@ -106,7 +65,6 @@ fun FullMediaScreen(
         }
     }
 
-    // REACTIVE RENDERER
     LaunchedEffect(currentIndex, mediaItems, statusLabel) {
         if (mediaItems.isEmpty()) return@LaunchedEffect
 
@@ -152,7 +110,7 @@ fun FullMediaScreen(
                         KeyEvent.KEYCODE_DPAD_LEFT -> { StreamingWorker.previous(); true }
                         KeyEvent.KEYCODE_DPAD_RIGHT -> { StreamingWorker.next(); true }
                         KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                            if (!isSlideshowActive) StreamingWorker.toggleSlideshow()
+                            StreamingWorker.toggleSlideshow()
                             true
                         }
                         KeyEvent.KEYCODE_BACK -> { onBack(); true }
@@ -183,7 +141,6 @@ fun FullMediaScreen(
                 }
             }
         } else {
-            // CONTENT DISPLAY: Optimized for low-RAM TV
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 if (isWaitingForFile || currentFile == null) {
                     androidx.compose.material3.CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
@@ -193,9 +150,9 @@ fun FullMediaScreen(
                             .data(currentFile)
                             .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
                             .diskCachePolicy(coil.request.CachePolicy.DISABLED)
-                            .bitmapConfig(android.graphics.Bitmap.Config.RGB_565) // MASSIVE RAM SAVING
-                            .allowHardware(true) // GPU ACCELERATED
-                            .crossfade(300) // Hardware-friendly transition
+                            .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
+                            .allowHardware(true)
+                            .crossfade(300)
                             .build(),
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
@@ -205,7 +162,6 @@ fun FullMediaScreen(
             }
         }
 
-        // ANIMATED SLIDE-DOWN OVERLAY
         AnimatedVisibility(
             visible = !isSlideshowActive && statusLabel != "END_OF_SHOW",
             enter = slideInVertically(initialOffsetY = { it / 2 }, animationSpec = tween(600)),
@@ -223,7 +179,6 @@ fun FullMediaScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    // START SLIDESHOW BUTTON
                     Button(
                         onClick = { StreamingWorker.toggleSlideshow() },
                         colors = ButtonDefaults.colors(
@@ -233,10 +188,18 @@ fun FullMediaScreen(
                         shape = ButtonDefaults.shape(CircleShape),
                         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
                     ) {
-                        Text(
-                            text = "▶ START SLIDESHOW",
-                            style = MaterialTheme.typography.labelLarge
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_play),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = Color.Black
+                            )
+                            Text(
+                                text = "START SLIDESHOW",
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
                     }
 
                     Text(
@@ -245,7 +208,6 @@ fun FullMediaScreen(
                         style = MaterialTheme.typography.labelLarge
                     )
 
-                    // ALIGNED NAVIGATION LABELS WITH VERTICAL OFFSET FIX
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(16.dp)

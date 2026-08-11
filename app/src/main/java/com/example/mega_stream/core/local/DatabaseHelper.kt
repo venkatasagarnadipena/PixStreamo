@@ -1,4 +1,4 @@
-package com.example.mega_stream.data.local
+package com.example.mega_stream.core.local
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
@@ -10,6 +10,12 @@ data class Folder(val id: Int, val name: String, val url: String)
 
 class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
+    override fun onConfigure(db: SQLiteDatabase) {
+        super.onConfigure(db)
+        db.enableWriteAheadLogging()
+        db.setForeignKeyConstraintsEnabled(true)
+    }
+
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(CREATE_TABLE_FOLDERS)
         db.execSQL(CREATE_TABLE_SETTINGS)
@@ -20,51 +26,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             db.execSQL(CREATE_TABLE_SETTINGS)
         }
         if (oldVersion < 3) {
-            // Version 3 adds support for session timestamps
-        }
-    }
-
-    fun updateLastActiveTime() {
-        saveSetting("last_active_time", System.currentTimeMillis().toString())
-    }
-
-    fun getLastActiveTime(): Long {
-        return getSetting("last_active_time", "0").toLong()
-    }
-
-    fun mergeFolders(newFolders: List<Pair<String, String>>) {
-        val db = this.writableDatabase
-        db.beginTransaction()
-        try {
-            for (folder in newFolders) {
-                val folderName = folder.first
-                val folderUrl = folder.second
-
-                val cursor = db.rawQuery(
-                    "SELECT 1 FROM $TABLE_FOLDERS WHERE $COLUMN_NAME = ? AND $COLUMN_URL = ?",
-                    arrayOf(folderName, folderUrl)
-                )
-                
-                val exists = cursor.moveToFirst()
-                cursor.close()
-
-                if (!exists) {
-                    val values = ContentValues().apply {
-                        put(COLUMN_NAME, folderName)
-                        put(COLUMN_URL, folderUrl)
-                    }
-                    db.insert(TABLE_FOLDERS, null, values)
-                }
-            }
-            db.setTransactionSuccessful()
-        } catch (e: Exception) {
-            Log.e("DatabaseHelper", "Error merging folders", e)
-        } finally {
-            try {
-                db.endTransaction()
-            } catch (e: Exception) {
-                Log.e("DatabaseHelper", "Error ending transaction", e)
-            }
+            db.execSQL("DROP TABLE IF EXISTS $TABLE_FOLDERS")
+            db.execSQL(CREATE_TABLE_FOLDERS)
         }
     }
 
@@ -90,17 +53,30 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         return folders
     }
 
+    fun mergeFolders(newFolders: List<Pair<String, String>>) {
+        val db = this.writableDatabase
+        db.beginTransaction()
+        try {
+            val values = ContentValues()
+            for (folder in newFolders) {
+                values.clear()
+                values.put(COLUMN_NAME, folder.first)
+                values.put(COLUMN_URL, folder.second)
+                db.insertWithOnConflict(TABLE_FOLDERS, null, values, SQLiteDatabase.CONFLICT_IGNORE)
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     fun saveSetting(key: String, value: String) {
         val db = this.writableDatabase
         val values = ContentValues().apply {
             put(COLUMN_SETTING_KEY, key)
             put(COLUMN_SETTING_VAL, value)
         }
-        try {
-            db.replace(TABLE_SETTINGS, null, values)
-        } catch (e: Exception) {
-            Log.e("DatabaseHelper", "Error saving setting $key", e)
-        }
+        db.replace(TABLE_SETTINGS, null, values)
     }
 
     fun getSetting(key: String, defaultValue: String): String {
@@ -115,8 +91,6 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             if (cursor.moveToFirst()) {
                 result = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_SETTING_VAL))
             }
-        } catch (e: Exception) {
-            Log.e("DatabaseHelper", "Error getting setting $key", e)
         } finally {
             cursor.close()
         }
@@ -138,13 +112,12 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     }
 
     companion object {
-        private const val DATABASE_NAME = "mega_stream.db"
-        private const val DATABASE_VERSION = 2
+        private const val DATABASE_NAME = "mega_stream_v12.db"
+        private const val DATABASE_VERSION = 3
         private const val TABLE_FOLDERS = "folders"
         private const val COLUMN_ID = "id"
         private const val COLUMN_NAME = "name"
         private const val COLUMN_URL = "mega_url"
-
         private const val TABLE_SETTINGS = "settings"
         private const val COLUMN_SETTING_KEY = "setting_key"
         private const val COLUMN_SETTING_VAL = "setting_value"
@@ -152,7 +125,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         private const val CREATE_TABLE_FOLDERS = "CREATE TABLE $TABLE_FOLDERS (" +
                 "$COLUMN_ID INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "$COLUMN_NAME TEXT," +
-                "$COLUMN_URL TEXT)"
+                "$COLUMN_URL TEXT," +
+                "UNIQUE($COLUMN_NAME, $COLUMN_URL))"
 
         private const val CREATE_TABLE_SETTINGS = "CREATE TABLE $TABLE_SETTINGS (" +
                 "$COLUMN_SETTING_KEY TEXT PRIMARY KEY," +

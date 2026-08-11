@@ -1,4 +1,4 @@
-package com.example.mega_stream.data
+package com.example.mega_stream.core.data
 
 import android.content.Context
 import android.os.Environment
@@ -7,7 +7,7 @@ import java.io.File
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import android.util.Log
-import com.example.mega_stream.data.local.DatabaseHelper
+import com.example.mega_stream.core.local.DatabaseHelper
 
 object CacheManager {
 
@@ -26,11 +26,6 @@ object CacheManager {
         return folderDir
     }
 
-    /**
-     * DYNAMIC STORAGE DETECTION:
-     * 1. Try user-defined path from Database.
-     * 2. Fall back to automatic detection (Removable -> Emulated -> Internal).
-     */
     fun getOptimalCacheDir(context: Context): File {
         val dbHelper = DatabaseHelper(context)
         val userPath = dbHelper.getSetting("storage_path", "AUTO")
@@ -45,7 +40,6 @@ object CacheManager {
             Log.w("CacheManager", "User-defined path $userPath is invalid or not writable. Falling back to AUTO.")
         }
 
-        // AUTO DETECTION LOGIC
         val externalFilesDirs = ContextCompat.getExternalFilesDirs(context, null)
         for (dir in externalFilesDirs) {
             if (dir != null) {
@@ -84,10 +78,6 @@ object CacheManager {
         }
     }
 
-    /**
-     * FULL SYSTEM PURGE:
-     * Deletes the entire mega_stream_v3 directory.
-     */
     fun deleteAllCache(context: Context) {
         try {
             val baseDir = getOptimalCacheDir(context)
@@ -100,10 +90,6 @@ object CacheManager {
         }
     }
 
-    /**
-     * SURGICAL PRUNING:
-     * Deletes all dl_*.jpg files in the folder except for those in the keepHandles set.
-     */
     fun pruneCacheExcept(folderDir: File, keepHandles: Set<String>) {
         if (!folderDir.exists()) return
         

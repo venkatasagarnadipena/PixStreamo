@@ -1,4 +1,4 @@
-package com.example.mega_stream.data
+package com.example.mega_stream.core.data
 
 import android.content.Context
 import com.chaquo.python.Python
@@ -40,7 +40,7 @@ object MegaManager {
                 handle = nodeObj.getString("h"),
                 name = nodeObj.getString("name"),
                 type = nodeObj.getString("type"),
-                fa = nodeObj.optString("fa", "") // Fix type mismatch by providing empty string fallback
+                fa = nodeObj.optString("fa", "")
             ))
         }
         return itemsList

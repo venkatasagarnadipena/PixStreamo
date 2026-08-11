@@ -1,23 +1,21 @@
-package com.example.mega_stream.core.data
+package com.example.mega_stream.core.network
 
 import android.content.Context
 import android.util.Log
-import com.example.mega_stream.core.local.DatabaseHelper
+import com.example.mega_stream.core.storage.DatabaseHelper
+import com.example.mega_stream.core.engine.MegaManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import java.io.File
 
 class ConfigFetcher(private val context: Context) {
-    private val dbHelper = DatabaseHelper(context)
+    private val dbHelper = DatabaseHelper.getInstance(context)
 
-    // DEFAULT FALLBACK URL
-    private val DEFAULT_JSON_URL = "https://mega.nz/file/AhQR3AxC#ZNvUcirmWJeqlTQAjsODb0L0teZL87vdNGOxf_l-NxY"
+    companion object {
+        const val DEFAULT_JSON_URL = "https://mega.nz/file/AhQR3AxC#ZNvUcirmWJeqlTQAjsODb0L0teZL87vdNGOxf_l-NxY"
+    }
 
-    /**
-     * DYNAMIC SYNC:
-     * Reads URL from DB settings, falls back to hardcoded default if empty/invalid.
-     */
     suspend fun fetchAndSync(): Boolean = withContext(Dispatchers.IO) {
         val userUrl = dbHelper.getSetting("config_url", DEFAULT_JSON_URL)
         val finalUrl = if (userUrl.isEmpty()) DEFAULT_JSON_URL else userUrl

@@ -1,5 +1,6 @@
 package com.example.mega_stream.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
@@ -8,9 +9,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.*
 import androidx.tv.foundation.lazy.grid.*
-import com.example.mega_stream.core.data.MegaManager
-import com.example.mega_stream.core.data.SharedMediaItem
-import com.example.mega_stream.core.data.StreamingWorker
+import com.example.mega_stream.core.engine.MegaManager
+import com.example.mega_stream.core.engine.SharedMediaItem
+import com.example.mega_stream.core.engine.StreamingWorker
 import com.example.mega_stream.ui.components.StreamingImageCard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -30,9 +31,10 @@ fun FolderBrowserScreen(
 
     LaunchedEffect(folderUrl) {
         isLoading = true
-        mediaItems = withContext(Dispatchers.IO) {
+        val result = withContext(Dispatchers.IO) {
             try { MegaManager.listSharedFolder(folderUrl).filter { it.type == "image" } } catch (e: Exception) { emptyList() }
         }
+        mediaItems = result
         isLoading = false
         StreamingWorker.initFolder(context, folderUrl, mediaItems, 0)
     }

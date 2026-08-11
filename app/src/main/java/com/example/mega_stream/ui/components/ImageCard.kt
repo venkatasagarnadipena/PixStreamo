@@ -12,8 +12,8 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.example.mega_stream.core.data.CacheManager
-import com.example.mega_stream.core.data.SharedMediaItem
+import com.example.mega_stream.core.engine.CacheManager
+import com.example.mega_stream.core.engine.SharedMediaItem
 import kotlinx.coroutines.flow.filter
 import java.io.File
 

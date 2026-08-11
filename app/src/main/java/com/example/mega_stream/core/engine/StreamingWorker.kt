@@ -1,4 +1,4 @@
-package com.example.mega_stream.core.data
+package com.example.mega_stream.core.engine
 
 import android.content.Context
 import android.util.Log
@@ -77,7 +77,6 @@ object StreamingWorker {
                 val windowEnd = (windowStart + WINDOW_SIZE).coerceAtMost(items.size - 1)
                 val windowRange = windowStart..windowEnd
 
-                var missingCount = 0
                 for (i in windowRange) {
                     if (!isActive) break
                     if (i >= items.size) break
@@ -87,7 +86,6 @@ object StreamingWorker {
                     val file = File(currentCacheDir, "dl_$handleId.jpg")
 
                     if (!file.exists() || file.length() < 1024) {
-                        missingCount++
                         _isWindowReady.value = false
                         _statusLabel.value = "Downloading ${i + 1}/${items.size}..."
                         
@@ -105,11 +103,13 @@ object StreamingWorker {
                 }
 
                 if (_currentIndex.value == currentPos) {
-                    val isFullyReady = windowRange.all { idx ->
-                        if (idx >= items.size) true 
-                        else {
-                            val id = items[idx].handle.split("#")[0]
-                            File(currentCacheDir, "dl_$id.jpg").exists() 
+                    val isFullyReady = if (items.isEmpty()) true else {
+                        windowRange.all { idx ->
+                            if (idx >= items.size) true 
+                            else {
+                                val id = items[idx].handle.split("#")[0]
+                                File(currentCacheDir, "dl_$id.jpg").exists() 
+                            }
                         }
                     }
                     _isWindowReady.value = isFullyReady
@@ -150,11 +150,9 @@ object StreamingWorker {
             val next = current + 1
             if (next < mediaItems.size) {
                 _currentIndex.value = next
-                Log.d("STREAMING_WORKER", "Advancing to index $next")
             } else {
                 _isSlideshowActive.value = false
                 _statusLabel.value = "END_OF_SHOW"
-                Log.d("STREAMING_WORKER", "End of Show reached")
             }
         }
     }
@@ -177,7 +175,7 @@ object StreamingWorker {
 
         if (_currentIndex.value != target) {
             _currentIndex.value = target
-            _isWindowReady.value = false
+            _isWindowReady.value = false 
         }
         if (pause) _isSlideshowActive.value = false
     }

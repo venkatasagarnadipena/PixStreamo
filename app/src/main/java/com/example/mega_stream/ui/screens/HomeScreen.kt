@@ -13,9 +13,9 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.*
 import androidx.tv.foundation.lazy.grid.*
 import com.example.mega_stream.R
-import com.example.mega_stream.core.local.DatabaseHelper
-import com.example.mega_stream.core.local.Folder
-import com.example.mega_stream.core.data.ConfigFetcher
+import com.example.mega_stream.core.storage.DatabaseHelper
+import com.example.mega_stream.core.storage.Folder
+import com.example.mega_stream.core.network.ConfigFetcher
 import com.example.mega_stream.ui.components.HeaderButton
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.focus.FocusRequester
@@ -33,11 +33,11 @@ fun HomeScreen(
     onCompleteReset: () -> Unit
 ) {
     val context = LocalContext.current
-    val dbHelper = remember { DatabaseHelper(context) }
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
     var folders by remember { mutableStateOf(emptyList<Folder>()) }
     val focusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
-    var isSyncing by remember { mutableStateOf(false) }
+    var isAutoSyncing by remember { mutableStateOf(false) }
 
     fun refreshFolders() {
         folders = dbHelper.getAllFolders()
@@ -46,11 +46,11 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         refreshFolders()
         if (folders.isEmpty()) {
-            isSyncing = true
+            isAutoSyncing = true
             scope.launch {
                 ConfigFetcher(context).fetchAndSync()
                 refreshFolders()
-                isSyncing = false
+                isAutoSyncing = false
             }
         }
         
@@ -79,18 +79,9 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     HeaderButton(
-                        text = if (isSyncing) "Syncing..." else "Sync",
+                        text = "Sync",
                         iconRes = R.drawable.ic_sync,
-                        onClick = {
-                            if (!isSyncing) {
-                                isSyncing = true
-                                scope.launch {
-                                    ConfigFetcher(context).fetchAndSync()
-                                    refreshFolders()
-                                    isSyncing = false
-                                }
-                            }
-                        }
+                        onClick = onSyncSelected
                     )
 
                     HeaderButton(
@@ -112,7 +103,7 @@ fun HomeScreen(
             if (folders.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        if (isSyncing) {
+                        if (isAutoSyncing) {
                             androidx.compose.material3.CircularProgressIndicator(color = Color.White)
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(text = "Fetching folders from Mega...", color = Color.Gray)

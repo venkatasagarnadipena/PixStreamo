@@ -1,4 +1,4 @@
-package com.example.mega_stream.core.data
+package com.example.mega_stream.core.engine
 
 import android.content.Context
 import com.chaquo.python.Python
@@ -8,7 +8,7 @@ import org.json.JSONObject
 data class SharedMediaItem(
     val handle: String,
     val name: String,
-    val type: String, // "video" or "image"
+    val type: String,
     val fa: String? = null
 )
 

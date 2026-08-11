@@ -21,9 +21,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
-import com.example.mega_stream.core.data.CacheManager
-import com.example.mega_stream.core.data.MegaManager
-import com.example.mega_stream.core.local.DatabaseHelper
+import com.example.mega_stream.core.engine.CacheManager
+import com.example.mega_stream.core.engine.MegaManager
+import com.example.mega_stream.core.storage.DatabaseHelper
 import com.example.mega_stream.ui.screens.*
 import com.example.mega_stream.ui.theme.Mega_streamTheme
 import java.net.URLDecoder
@@ -43,7 +43,6 @@ class MainActivity : ComponentActivity() {
         
         setContent {
             Mega_streamTheme {
-                // Ensure a persistent black background behind EVERYTHING to prevent flicker
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -66,26 +65,17 @@ class MainActivity : ComponentActivity() {
 fun AppNavigation() {
     val navController = rememberNavController()
     val context = LocalContext.current
-    val dbHelper = remember { DatabaseHelper(context) }
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
     
     val startDest = if (dbHelper.isFirstLaunch()) "welcome" else "splash"
 
     NavHost(
         navController = navController, 
         startDestination = startDest,
-        // MODERN TRANSITIONS: Standardizing on smooth Fade + Scale to feel premium on TV
-        enterTransition = { 
-            fadeIn(animationSpec = tween(500)) + scaleIn(initialScale = 0.95f, animationSpec = tween(500)) 
-        },
-        exitTransition = { 
-            fadeOut(animationSpec = tween(500)) 
-        },
-        popEnterTransition = { 
-            fadeIn(animationSpec = tween(500)) 
-        },
-        popExitTransition = { 
-            fadeOut(animationSpec = tween(500)) + scaleOut(targetScale = 0.95f, animationSpec = tween(500)) 
-        }
+        enterTransition = { fadeIn(animationSpec = tween(500)) + scaleIn(initialScale = 0.95f, animationSpec = tween(500)) },
+        exitTransition = { fadeOut(animationSpec = tween(500)) },
+        popEnterTransition = { fadeIn(animationSpec = tween(500)) },
+        popExitTransition = { fadeOut(animationSpec = tween(500)) + scaleOut(targetScale = 0.95f, animationSpec = tween(500)) }
     ) {
         composable("welcome") { WelcomeScreen(onContinue = { navController.navigate("onboarding_menu") }) }
         
@@ -108,6 +98,15 @@ fun AppNavigation() {
                 navController.navigate("home") { popUpTo("splash") { inclusive = true } }
             })
         }
+
+        composable("sync_portal") {
+            SyncScreen(
+                onSyncComplete = {
+                    navController.navigate("splash") { popUpTo("home") { inclusive = true } }
+                },
+                onBack = { navController.popBackStack() }
+            )
+        }
         
         composable("home") {
             HomeScreen(
@@ -117,7 +116,7 @@ fun AppNavigation() {
                     navController.navigate("browser/$encodedName/$encodedUrl")
                 },
                 onSettingsSelected = { navController.navigate("onboarding_menu") },
-                onSyncSelected = {},
+                onSyncSelected = { navController.navigate("sync_portal") },
                 onCompleteReset = {
                     dbHelper.resetAllData()
                     CacheManager.deleteAllCache(context)
@@ -160,7 +159,7 @@ fun AppNavigation() {
             val index = backStackEntry.arguments?.getInt("index") ?: 0
             val folderUrl = URLDecoder.decode(backStackEntry.arguments?.getString("folderUrl") ?: "", StandardCharsets.UTF_8.toString())
             
-            FullMediaScreen(
+            PlayerScreen(
                 initialHandle = handle,
                 initialIndex = index,
                 folderUrl = folderUrl,

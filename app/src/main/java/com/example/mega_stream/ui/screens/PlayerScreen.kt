@@ -23,7 +23,7 @@ import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.mega_stream.R
-import com.example.mega_stream.core.data.*
+import com.example.mega_stream.core.engine.*
 import com.example.mega_stream.ui.components.DribbbleLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -33,7 +33,7 @@ import java.io.File
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun FullMediaScreen(
+fun PlayerScreen(
     initialHandle: String,
     initialIndex: Int,
     folderUrl: String,

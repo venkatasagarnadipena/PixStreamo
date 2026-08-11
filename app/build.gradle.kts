@@ -18,19 +18,16 @@ android {
         vectorDrawables { useSupportLibrary = true }
 
         ndk {
-            // Keep all filters in defaultConfig so Chaquopy knows which native engines to prepare
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
         }
     }
 
-    // GENERATE SEPARATE APKs FOR EACH ENGINE
-    // This solves the 80MB size problem by creating specific small files for TV and Emulator.
     splits {
         abi {
             isEnable = true
             reset()
             include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
-            isUniversalApk = true // Generates one large file (All-in-one) plus specific small files.
+            isUniversalApk = true 
         }
     }
 
@@ -73,6 +70,8 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/INDEX.LIST"
+            excludes += "META-INF/io.netty.versions.properties"
         }
         jniLibs {
             useLegacyPackaging = true
@@ -104,5 +103,12 @@ dependencies {
     implementation(libs.androidx.tv.material)
     implementation(libs.coil.compose)
     implementation("com.google.zxing:core:3.5.3")
+
+    // Ktor for Local Web Portal
+    val ktor_version = "2.3.12"
+    implementation("io.ktor:ktor-server-netty:$ktor_version")
+    implementation("io.ktor:ktor-server-core:$ktor_version")
+    implementation("io.ktor:ktor-server-html-builder:$ktor_version")
+
     debugImplementation(libs.androidx.ui.tooling)
 }

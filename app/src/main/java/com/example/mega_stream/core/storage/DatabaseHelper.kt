@@ -1,4 +1,4 @@
-package com.example.mega_stream.core.local
+package com.example.mega_stream.core.storage
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
@@ -8,7 +8,7 @@ import android.util.Log
 
 data class Folder(val id: Int, val name: String, val url: String)
 
-class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     override fun onConfigure(db: SQLiteDatabase) {
         super.onConfigure(db)
@@ -22,13 +22,9 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        if (oldVersion < 2) {
-            db.execSQL(CREATE_TABLE_SETTINGS)
-        }
-        if (oldVersion < 3) {
-            db.execSQL("DROP TABLE IF EXISTS $TABLE_FOLDERS")
-            db.execSQL(CREATE_TABLE_FOLDERS)
-        }
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_FOLDERS")
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_SETTINGS")
+        onCreate(db)
     }
 
     fun getAllFolders(): List<Folder> {
@@ -112,8 +108,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     }
 
     companion object {
-        private const val DATABASE_NAME = "mega_stream_v12.db"
-        private const val DATABASE_VERSION = 3
+        private const val DATABASE_NAME = "mega_stream_final.db"
+        private const val DATABASE_VERSION = 1
         private const val TABLE_FOLDERS = "folders"
         private const val COLUMN_ID = "id"
         private const val COLUMN_NAME = "name"
@@ -131,5 +127,14 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         private const val CREATE_TABLE_SETTINGS = "CREATE TABLE $TABLE_SETTINGS (" +
                 "$COLUMN_SETTING_KEY TEXT PRIMARY KEY," +
                 "$COLUMN_SETTING_VAL TEXT)"
+
+        @Volatile
+        private var instance: DatabaseHelper? = null
+
+        fun getInstance(context: Context): DatabaseHelper {
+            return instance ?: synchronized(this) {
+                instance ?: DatabaseHelper(context.applicationContext).also { instance = it }
+            }
+        }
     }
 }

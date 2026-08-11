@@ -25,7 +25,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.*
 import com.example.mega_stream.R
-import com.example.mega_stream.core.local.DatabaseHelper
+import com.example.mega_stream.core.storage.DatabaseHelper
 import java.io.File
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -79,7 +79,7 @@ fun OnboardingMenuScreen(
     onFinish: () -> Unit
 ) {
     val context = LocalContext.current
-    val dbHelper = remember { DatabaseHelper(context) }
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
     val currentUrl = dbHelper.getSetting("config_url", "Default Link Active")
     val currentStorage = dbHelper.getSetting("storage_path", "AUTO (Recommended)")
 
@@ -205,7 +205,7 @@ fun ConfigCard(
 @Composable
 fun SetupUrlScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val dbHelper = remember { DatabaseHelper(context) }
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
     var urlText by remember { mutableStateOf(dbHelper.getSetting("config_url", "")) }
     val focusRequester = remember { FocusRequester() }
 
@@ -271,7 +271,7 @@ fun SetupUrlScreen(onBack: () -> Unit) {
 @Composable
 fun SetupStorageScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val dbHelper = remember { DatabaseHelper(context) }
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
 
     var currentDir by remember { mutableStateOf(File("/storage")) }
     if (!currentDir.exists()) currentDir = File("/")

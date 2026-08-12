@@ -1,4 +1,4 @@
-package com.example.mega_stream.data
+package com.example.mega_stream.core.engine
 
 import android.content.Context
 import android.util.Log
@@ -8,14 +8,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
 
-/**
- * ROLLING WINDOW ENGINE:
- * 1. Maintains a 30-image window around the current index.
- * 2. Sequential downloads to respect low-end hardware (1GB RAM).
- * 3. Prunes old images to maintain a small storage footprint.
- */
 object StreamingWorker {
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val engineMutex = Mutex()
     private var engineJob: Job? = null
 
@@ -58,7 +52,7 @@ object StreamingWorker {
                 activeFolderUrl = url
                 mediaItems = items
                 _currentIndex.value = initialIndex
-                _isWindowReady.value = false // Reset window ready state for new folder
+                _isWindowReady.value = false 
                 cacheDir = CacheManager.getFolderCacheDir(context, url)
                 
                 Log.d("STREAMING_WORKER", "Initializing Rolling Window for: $url at index $initialIndex")
@@ -70,7 +64,6 @@ object StreamingWorker {
     private fun startEngineLocked() {
         engineJob = scope.launch {
             while (isActive) {
-                // Safeguard mediaItems access
                 val items = mediaItems
                 val currentCacheDir = cacheDir
                 
@@ -80,14 +73,11 @@ object StreamingWorker {
                 }
 
                 val currentPos = _currentIndex.value
-                
-                // Define the 30-image window to KEEP
                 val windowStart = (currentPos - 5).coerceAtLeast(0)
                 val windowEnd = (windowStart + WINDOW_SIZE).coerceAtMost(items.size - 1)
                 val windowRange = windowStart..windowEnd
 
-                // 1. SEQUENTIAL DOWNLOAD OF THE WINDOW
-                var missingCount = 0
+                // Sequential window fetching but with priority to the current item
                 for (i in windowRange) {
                     if (!isActive) break
                     if (i >= items.size) break
@@ -96,65 +86,55 @@ object StreamingWorker {
                     val handleId = item.handle.split("#")[0]
                     val file = File(currentCacheDir, "dl_$handleId.jpg")
 
-                    // Optimization: Check exists and size in one call to reduce disk IO latency
                     if (!file.exists() || file.length() < 1024) {
-                        missingCount++
                         _isWindowReady.value = false
                         _statusLabel.value = "Downloading ${i + 1}/${items.size}..."
                         
-                        // Execute in IO context and yield to keep UI responsive
-                        val success = withContext(Dispatchers.IO) {
-                            MegaManager.downloadFile(item.handle, currentCacheDir.absolutePath)
-                        }
+                        // Execute in background
+                        val success = MegaManager.downloadFile(item.handle, currentCacheDir.absolutePath)
                         
                         if (success && file.exists()) {
                             CacheManager.notifyFileReady(handleId)
                         }
-                        yield() // Be cooperative with other coroutines
                     }
                     
                     if (_currentIndex.value != currentPos) break
+                    yield()
                 }
 
                 if (_currentIndex.value == currentPos) {
-                    // Re-check window after loop to be sure
-                    val isFullyReady = windowRange.all { idx ->
-                        if (idx >= items.size) true // Out of bounds is technically "ready"
-                        else {
-                            val id = items[idx].handle.split("#")[0]
-                            File(currentCacheDir, "dl_$id.jpg").exists() 
+                    val isFullyReady = if (items.isEmpty()) true else {
+                        windowRange.all { idx ->
+                            if (idx >= items.size) true 
+                            else {
+                                val id = items[idx].handle.split("#")[0]
+                                File(currentCacheDir, "dl_$id.jpg").exists() 
+                            }
                         }
                     }
                     _isWindowReady.value = isFullyReady
                 }
+                
+                if (_isWindowReady.value) {
+                    _statusLabel.value = "Ready at ${currentPos + 1}"
+                }
 
-                // 2. PRUNING: Only run pruning if we've moved significantly to avoid constant disk IO
                 if (Math.abs(currentPos - lastPrunedIndex) >= 5) {
                     val keepHandles = windowRange.filter { it < items.size }.map { items[it].handle }.toSet()
                     CacheManager.pruneCacheExcept(currentCacheDir, keepHandles)
                     lastPrunedIndex = currentPos
                 }
 
-                // 3. SLIDESHOW / WAITING LOGIC
                 if (_isSlideshowActive.value) {
-                    val statusText = if (_statusLabel.value == "END_OF_SHOW") "END_OF_SHOW" else "Slideshow Active: ${currentPos + 1}"
-                    _statusLabel.value = statusText
-                    
-                    delay(8000) // 8s slide duration
+                    delay(8000) 
                     engineMutex.withLock {
                         if (_isSlideshowActive.value && currentPos == _currentIndex.value) {
                             advanceIndex()
                         }
                     }
                 } else {
-                    if (_statusLabel.value != "END_OF_SHOW") {
-                        _statusLabel.value = "Ready at ${currentPos + 1}"
-                    }
-                    // Small delay to prevent tight loop if window is already full
                     delay(500)
-                    
-                    // Wait for an index change or slideshow activation
-                    while (isActive && _currentIndex.value == currentPos && !_isSlideshowActive.value && _statusLabel.value != "END_OF_SHOW") {
+                    while (isActive && _currentIndex.value == currentPos && !_isSlideshowActive.value) {
                         delay(200)
                     }
                 }
@@ -168,12 +148,9 @@ object StreamingWorker {
             val next = current + 1
             if (next < mediaItems.size) {
                 _currentIndex.value = next
-                Log.d("STREAMING_WORKER", "Advancing to index $next")
             } else {
-                // END OF SHOW reached
                 _isSlideshowActive.value = false
                 _statusLabel.value = "END_OF_SHOW"
-                Log.d("STREAMING_WORKER", "End of Show reached")
             }
         }
     }
@@ -190,14 +167,13 @@ object StreamingWorker {
         if (mediaItems.isEmpty()) return
         val target = index.coerceIn(0, mediaItems.size - 1)
         
-        // Reset END_OF_SHOW if we are jumping to a valid image
         if (_statusLabel.value == "END_OF_SHOW") {
             _statusLabel.value = "Ready"
         }
 
         if (_currentIndex.value != target) {
             _currentIndex.value = target
-            _isWindowReady.value = false // Reset window ready state when jumping to new position
+            _isWindowReady.value = false 
         }
         if (pause) _isSlideshowActive.value = false
     }

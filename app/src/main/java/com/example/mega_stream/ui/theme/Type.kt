@@ -1,11 +1,13 @@
 package com.example.mega_stream.ui.theme
 
-import androidx.compose.material3.Typography
+import androidx.tv.material3.Typography
+import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+@OptIn(ExperimentalTvMaterial3Api::class)
 val Typography = Typography(
     bodyLarge = TextStyle(
         fontFamily = FontFamily.Default,

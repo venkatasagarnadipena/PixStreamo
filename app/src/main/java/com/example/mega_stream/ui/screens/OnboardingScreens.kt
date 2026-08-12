@@ -1,4 +1,4 @@
-package com.example.mega_stream.ui
+package com.example.mega_stream.ui.screens
 
 import android.os.Environment
 import androidx.activity.compose.BackHandler
@@ -9,11 +9,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -26,14 +21,13 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.*
-import com.example.mega_stream.data.local.DatabaseHelper
+import com.example.mega_stream.R
+import com.example.mega_stream.core.storage.DatabaseHelper
 import java.io.File
 
-/**
- * POLISHED WELCOME SCREEN
- */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun WelcomeScreen(onContinue: () -> Unit) {
@@ -77,9 +71,6 @@ fun WelcomeScreen(onContinue: () -> Unit) {
     }
 }
 
-/**
- * MAIN ONBOARDING MENU: Card-based selection
- */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun OnboardingMenuScreen(
@@ -88,7 +79,7 @@ fun OnboardingMenuScreen(
     onFinish: () -> Unit
 ) {
     val context = LocalContext.current
-    val dbHelper = remember { DatabaseHelper(context) }
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
     val currentUrl = dbHelper.getSetting("config_url", "Default Link Active")
     val currentStorage = dbHelper.getSetting("storage_path", "AUTO (Recommended)")
 
@@ -115,22 +106,20 @@ fun OnboardingMenuScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(28.dp)
             ) {
-                // URL CONFIG CARD
                 ConfigCard(
                     title = "Media Source",
                     subtitle = currentUrl,
-                    icon = Icons.Default.Link,
+                    iconRes = R.drawable.ic_sync,
                     modifier = Modifier
                         .weight(1f)
                         .focusRequester(focusRequester),
                     onClick = onSelectUrl
                 )
 
-                // STORAGE CONFIG CARD
                 ConfigCard(
                     title = "Storage Location",
                     subtitle = currentStorage,
-                    icon = Icons.Default.SdCard,
+                    iconRes = R.drawable.ic_filemanager,
                     modifier = Modifier.weight(1f),
                     onClick = onSelectStorage
                 )
@@ -158,7 +147,7 @@ fun OnboardingMenuScreen(
 fun ConfigCard(
     title: String,
     subtitle: String,
-    icon: ImageVector,
+    iconRes: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -188,7 +177,7 @@ fun ConfigCard(
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Icon(
-                imageVector = icon,
+                painter = painterResource(id = iconRes),
                 contentDescription = title,
                 tint = if (isFocused) Color.Yellow else Color.White.copy(alpha = 0.8f),
                 modifier = Modifier.size(36.dp)
@@ -212,14 +201,11 @@ fun ConfigCard(
     }
 }
 
-/**
- * URL INPUT SCREEN
- */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun SetupUrlScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val dbHelper = remember { DatabaseHelper(context) }
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
     var urlText by remember { mutableStateOf(dbHelper.getSetting("config_url", "")) }
     val focusRequester = remember { FocusRequester() }
 
@@ -281,14 +267,11 @@ fun SetupUrlScreen(onBack: () -> Unit) {
     }
 }
 
-/**
- * MODERN FOLDER PICKER SCREEN
- */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun SetupStorageScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val dbHelper = remember { DatabaseHelper(context) }
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
 
     var currentDir by remember { mutableStateOf(File("/storage")) }
     if (!currentDir.exists()) currentDir = File("/")
@@ -329,7 +312,6 @@ fun SetupStorageScreen(onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(24.dp))
 
             Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                // DIR LIST
                 LazyColumn(
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -352,21 +334,10 @@ fun SetupStorageScreen(onBack: () -> Unit) {
                             onClick = { currentDir = file }
                         )
                     }
-
-                    if (fileList.isEmpty() && currentDir.absolutePath != "/storage") {
-                        item {
-                            Text(
-                                "No subfolders found or permission denied.",
-                                color = Color.DarkGray,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
-                    }
                 }
 
                 Spacer(modifier = Modifier.width(48.dp))
 
-                // ACTIONS
                 Column(
                     modifier = Modifier.width(260.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -453,7 +424,7 @@ fun FolderItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = if (isUpItem) Icons.Default.ArrowUpward else Icons.Default.Folder,
+                painter = if (isUpItem) painterResource(id = R.drawable.ic_back) else painterResource(id = R.drawable.ic_filemanager),
                 contentDescription = null,
                 tint = if (isFocused) Color.Yellow else Color.White.copy(alpha = 0.8f),
                 modifier = Modifier.size(24.dp)

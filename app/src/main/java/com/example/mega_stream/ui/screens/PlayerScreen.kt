@@ -1,5 +1,6 @@
 package com.example.mega_stream.ui.screens
 
+import android.util.Log
 import android.view.KeyEvent
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -55,11 +56,11 @@ fun PlayerScreen(
     val focusRequester = remember { FocusRequester() }
     val folderCacheDir = remember(folderUrl) { CacheManager.getFolderCacheDir(context, folderUrl) }
 
-    // Logic: End screen only if reached the end WHILE in slideshow mode
+    // CRITICAL: Robust End of Show detection
     val isEndOfShow = statusLabel == "END_OF_SHOW"
     
     // Logic: Start screen only if slideshow is active and first 30 images not cached yet
-    val showIntro = isSlideshowActive && !isWindowReady
+    val showIntro = isSlideshowActive && !isWindowReady && !isEndOfShow
 
     LaunchedEffect(folderUrl) {
         val result = withContext(Dispatchers.IO) {
@@ -74,8 +75,9 @@ fun PlayerScreen(
     LaunchedEffect(currentIndex, mediaItems, statusLabel) {
         if (mediaItems.isEmpty()) return@LaunchedEffect
 
-        // Auto-navigate to home only after the End of Show screen has been visible
+        // If we reached the end, stay on the screen for 5 seconds then go home
         if (isEndOfShow) {
+            Log.d("PlayerScreen", "END_OF_SHOW detected. Starting exit countdown.")
             delay(5000)
             onHome()
             return@LaunchedEffect
@@ -127,7 +129,37 @@ fun PlayerScreen(
             },
         contentAlignment = Alignment.Center
     ) {
-        // --- 1. SLIDESHOW START SCREEN (Only if Slideshow is active and buffering) ---
+        // --- 1. MAIN PLAYER (Base layer) ---
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            if (!isEndOfShow) {
+                Crossfade(
+                    targetState = currentFile,
+                    animationSpec = tween(durationMillis = 1000),
+                    label = "image_fade"
+                ) { targetFile ->
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        if (targetFile != null && !isWaitingForFile) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(targetFile)
+                                    .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                                    .diskCachePolicy(coil.request.CachePolicy.DISABLED)
+                                    .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
+                                    .allowHardware(true)
+                                    .build(),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit
+                            )
+                        } else if (isSlideshowActive && !showIntro) {
+                            androidx.compose.material3.CircularProgressIndicator(color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- 2. SLIDESHOW START SCREEN (Overlay) ---
         AnimatedVisibility(
             visible = showIntro,
             enter = fadeIn(),
@@ -153,35 +185,7 @@ fun PlayerScreen(
             }
         }
 
-        // --- 2. MAIN PLAYER ---
-        if (!showIntro && !isEndOfShow) {
-            Crossfade(
-                targetState = currentFile,
-                animationSpec = tween(durationMillis = 1000),
-                label = "image_fade"
-            ) { targetFile ->
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    if (targetFile != null && !isWaitingForFile) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data(targetFile)
-                                .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
-                                .diskCachePolicy(coil.request.CachePolicy.DISABLED)
-                                .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
-                                .allowHardware(true)
-                                .build(),
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit
-                        )
-                    } else {
-                        androidx.compose.material3.CircularProgressIndicator(color = Color.White)
-                    }
-                }
-            }
-        }
-
-        // --- 3. SLIDESHOW END SCREEN (Only triggers if slideshow completes) ---
+        // --- 3. SLIDESHOW END SCREEN (Top-most overlay) ---
         AnimatedVisibility(
             visible = isEndOfShow,
             enter = fadeIn(animationSpec = tween(800)) + scaleIn(initialScale = 0.9f),
@@ -212,7 +216,7 @@ fun PlayerScreen(
             }
         }
 
-        // --- 4. CONTROLS OVERLAY (Hidden during Slideshow) ---
+        // --- 4. CONTROLS OVERLAY ---
         AnimatedVisibility(
             visible = !isSlideshowActive && !isEndOfShow,
             enter = slideInVertically(initialOffsetY = { it / 2 }, animationSpec = tween(600)),

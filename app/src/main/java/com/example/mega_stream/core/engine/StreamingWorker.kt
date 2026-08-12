@@ -90,7 +90,6 @@ object StreamingWorker {
                         _isWindowReady.value = false
                         _statusLabel.value = "Downloading ${i + 1}/${items.size}..."
                         
-                        // Execute in background
                         val success = MegaManager.downloadFile(item.handle, currentCacheDir.absolutePath)
                         
                         if (success && file.exists()) {
@@ -115,7 +114,7 @@ object StreamingWorker {
                     _isWindowReady.value = isFullyReady
                 }
                 
-                if (_isWindowReady.value) {
+                if (_isWindowReady.value && _statusLabel.value != "END_OF_SHOW") {
                     _statusLabel.value = "Ready at ${currentPos + 1}"
                 }
 
@@ -149,7 +148,8 @@ object StreamingWorker {
             if (next < mediaItems.size) {
                 _currentIndex.value = next
             } else {
-                _isSlideshowActive.value = false
+                // EXPLICIT END SIGNAL: Keep isSlideshowActive=true but set label to END_OF_SHOW
+                // This ensures the UI knows the show reached the end WHILE ACTIVE.
                 _statusLabel.value = "END_OF_SHOW"
             }
         }
@@ -159,8 +159,10 @@ object StreamingWorker {
         if (_statusLabel.value == "END_OF_SHOW") {
             _statusLabel.value = "Resuming..."
             _currentIndex.value = 0
+            _isSlideshowActive.value = true
+        } else {
+            _isSlideshowActive.value = !_isSlideshowActive.value
         }
-        _isSlideshowActive.value = !_isSlideshowActive.value
     }
 
     fun jumpTo(index: Int, pause: Boolean) {
@@ -180,18 +182,29 @@ object StreamingWorker {
 
     fun next() {
         _isSlideshowActive.value = false
-        advanceIndex()
+        if (_statusLabel.value == "END_OF_SHOW") {
+            _statusLabel.value = "Ready"
+            _currentIndex.value = 0
+        } else {
+            advanceIndex()
+        }
     }
 
     fun previous() {
         _isSlideshowActive.value = false
-        if (_currentIndex.value > 0) _currentIndex.value--
-        else _currentIndex.value = mediaItems.size - 1
+        if (_statusLabel.value == "END_OF_SHOW") {
+            _statusLabel.value = "Ready"
+            _currentIndex.value = mediaItems.size - 1
+        } else {
+            if (_currentIndex.value > 0) _currentIndex.value--
+            else _currentIndex.value = mediaItems.size - 1
+        }
     }
 
     private fun stopLocked() {
         engineJob?.cancel()
         activeFolderUrl = ""
         _statusLabel.value = "Stopped"
+        _isSlideshowActive.value = false
     }
 }

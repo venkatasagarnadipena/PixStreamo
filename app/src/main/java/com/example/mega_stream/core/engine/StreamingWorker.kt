@@ -48,7 +48,6 @@ object StreamingWorker {
                     return@withLock
                 }
                 
-                PixLog.i("StreamingWorker", "Initializing folder: ${PixLog.mask(url)} at index $initialIndex")
                 stopLocked()
                 activeFolderUrl = url
                 mediaItems = items
@@ -62,7 +61,6 @@ object StreamingWorker {
 
     private fun startEngineLocked() {
         engineJob = scope.launch {
-            PixLog.d("StreamingWorker", "Engine started for ${mediaItems.size} items.")
             while (isActive) {
                 val items = mediaItems
                 val currentCacheDir = cacheDir
@@ -88,9 +86,7 @@ object StreamingWorker {
                     if (!file.exists() || file.length() < 1024) {
                         _isWindowReady.value = false
                         _statusLabel.value = "Downloading ${i + 1}/${items.size}..."
-                        
-                        val success = MegaManager.downloadFile(item.handle, currentCacheDir.absolutePath)
-                        PixLog.d("StreamingWorker", "Window download: ${item.name} -> $success")
+                        MegaManager.downloadFile(item.handle, currentCacheDir.absolutePath)
                     }
                     
                     if (_currentIndex.value != currentPos) break
@@ -143,10 +139,8 @@ object StreamingWorker {
             val next = current + 1
             if (next < mediaItems.size) {
                 _currentIndex.value = next
-                PixLog.d("StreamingWorker", "Slideshow advanced to index $next")
             } else {
                 _statusLabel.value = "END_OF_SHOW"
-                PixLog.i("StreamingWorker", "End of folder reached during slideshow.")
             }
         }
     }
@@ -159,7 +153,6 @@ object StreamingWorker {
         } else {
             _isSlideshowActive.value = !_isSlideshowActive.value
         }
-        PixLog.i("StreamingWorker", "Slideshow active: ${_isSlideshowActive.value}")
     }
 
     fun jumpTo(index: Int, pause: Boolean) {
@@ -169,7 +162,6 @@ object StreamingWorker {
         if (_currentIndex.value != target) {
             _currentIndex.value = target
             _isWindowReady.value = false 
-            PixLog.d("StreamingWorker", "Jumped to index $target")
         }
         if (pause) _isSlideshowActive.value = false
     }
@@ -198,6 +190,5 @@ object StreamingWorker {
         activeFolderUrl = ""
         _statusLabel.value = "Stopped"
         _isSlideshowActive.value = false
-        PixLog.d("StreamingWorker", "Engine stopped.")
     }
 }

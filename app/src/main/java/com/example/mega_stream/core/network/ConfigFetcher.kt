@@ -14,11 +14,10 @@ class ConfigFetcher(private val context: Context) {
     private val dbHelper = DatabaseHelper.getInstance(context)
 
     companion object {
-        const val DEFAULT_JSON_URL = "https://mega.nz/file/AhQR3AxC#ZNvUcirmWJeqlTQAjsODb0L0teZL87vdNGOxf_l-NxY"
+        // PERMANENTLY REMOVED: Default URL is now empty to ensure no auto-loading
+        const val DEFAULT_JSON_URL = ""
         private val syncMutex = Mutex()
         private val globalScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        
-        // SYNC COOLDOWN: Prevent redundant syncing within 3 minutes
         private var lastSyncTime = 0L
     }
 
@@ -29,20 +28,21 @@ class ConfigFetcher(private val context: Context) {
     }
 
     /**
-     * OPTIMIZED SYNC: Checks for cooldown and ensures data integrity.
+     * PRODUCTION SYNC: Only processes user-provided URLs.
      */
     suspend fun fetchAndSync(): Boolean = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        if (now - lastSyncTime < 180000) { // 3 minutes cooldown
-            PixLog.d("ConfigFetcher", "Sync skipped (Cooldown active)")
-            return@withContext false
-        }
+        if (now - lastSyncTime < 180000) return@withContext false
 
         syncMutex.withLock {
-            val userUrl = dbHelper.getSetting("config_url", DEFAULT_JSON_URL)
-            val finalUrl = if (userUrl.isEmpty()) DEFAULT_JSON_URL else userUrl
+            val userUrl = dbHelper.getSetting("config_url", "")
             
-            PixLog.i("ConfigFetcher", "Sync starting...")
+            // If there is no user-provided URL, we abort immediately.
+            if (userUrl.isEmpty()) {
+                return@withLock false
+            }
+            
+            val finalUrl = userUrl
             
             try {
                 val cacheDir = context.cacheDir
@@ -88,11 +88,10 @@ class ConfigFetcher(private val context: Context) {
                             }
                         }
                     } catch (e: Exception) {
-                        PixLog.e("ConfigFetcher", "Parse Error", e)
+                        // All logs removed for final production
                     }
 
                     if (folderPairs.isNotEmpty()) {
-                        // ENSURE ATOMICITY: Use NonCancellable to prevent DB corruption during screen transition
                         withContext(NonCancellable) {
                             dbHelper.mergeFolders(folderPairs)
                         }
@@ -102,7 +101,7 @@ class ConfigFetcher(private val context: Context) {
                     }
                 }
             } catch (e: Exception) {
-                PixLog.e("ConfigFetcher", "Sync Error", e)
+                // All logs removed for final production
             }
             return@withContext false
         }

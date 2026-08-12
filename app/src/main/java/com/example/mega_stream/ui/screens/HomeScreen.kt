@@ -1,6 +1,7 @@
 package com.example.mega_stream.ui.screens
 
 import android.util.Log
+import android.view.SoundEffectConstants
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Icon
@@ -20,6 +21,8 @@ import com.example.mega_stream.ui.components.HeaderButton
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.Dialog
 import com.example.mega_stream.core.engine.CacheManager
 import kotlinx.coroutines.delay
@@ -34,10 +37,10 @@ fun HomeScreen(
     onCompleteReset: () -> Unit 
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
     var folders by remember { mutableStateOf(emptyList<Folder>()) }
     
-    // FOCUS REQUERSTERS: Essential for TV D-Pad support
     val syncButtonFocusRequester = remember { FocusRequester() }
     val gridFocusRequester = remember { FocusRequester() }
     
@@ -49,26 +52,19 @@ fun HomeScreen(
     fun refreshFolders() {
         val latestFolders = dbHelper.getAllFolders()
         folders = latestFolders
-        Log.d("HomeScreen", "UI State Update: ${latestFolders.size} folders found.")
+        Log.d("HomeScreen", "REFRESH: Found ${latestFolders.size} folders.")
     }
 
     LaunchedEffect(Unit) {
         refreshFolders()
         
-        // CRITICAL FOCUS HANDOFF: 
-        // Wait for animations to settle, then aggressively claim focus for the D-Pad.
         delay(1000) 
         if (folders.isEmpty()) {
-            Log.d("HomeScreen", "Focusing Sync button (Empty Library)")
-            try { syncButtonFocusRequester.requestFocus() } catch (e: Exception) {
-                Log.e("HomeScreen", "Focus request failed", e)
-            }
+            try { syncButtonFocusRequester.requestFocus() } catch (e: Exception) {}
         } else {
-            Log.d("HomeScreen", "Focusing Grid (Populated Library)")
             try { gridFocusRequester.requestFocus() } catch (e: Exception) {}
         }
 
-        // Silent background check
         isSyncingFolders = true 
         scope.launch {
             ConfigFetcher(context).fetchAndSync()
@@ -77,7 +73,6 @@ fun HomeScreen(
         }
     }
 
-    // RESET CONFIRMATION DIALOG
     if (showResetDialog) {
         Dialog(onDismissRequest = { showResetDialog = false }) {
             Column(
@@ -113,12 +108,14 @@ fun HomeScreen(
                             showResetDialog = false
                             try { syncButtonFocusRequester.requestFocus() } catch (e: Exception) {}
                         },
-                        modifier = Modifier.weight(1f).height(48.dp),
+                        modifier = Modifier.weight(1f).height(48.dp).onFocusChanged {
+                            if (it.isFocused) view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
+                        },
                         colors = ButtonDefaults.colors(
-                            containerColor = Color.Red, 
-                            contentColor = Color.White,
-                            focusedContainerColor = Color.White,
-                            focusedContentColor = Color.Red
+                            containerColor = Color.White, // INVERTED: Default is White
+                            contentColor = Color.Red,
+                            focusedContainerColor = Color.Red, // INVERTED: Focused is Red
+                            focusedContentColor = Color.White
                         )
                     ) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -128,12 +125,14 @@ fun HomeScreen(
                     
                     OutlinedButton(
                         onClick = { showResetDialog = false },
-                        modifier = Modifier.weight(1f).height(48.dp),
+                        modifier = Modifier.weight(1f).height(48.dp).onFocusChanged {
+                            if (it.isFocused) view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
+                        },
                         colors = ButtonDefaults.colors(
-                            containerColor = Color.Transparent,
-                            contentColor = Color.White,
-                            focusedContainerColor = Color.White,
-                            focusedContentColor = Color.Black
+                            containerColor = Color.White, // INVERTED: Default is White
+                            contentColor = Color.Black,
+                            focusedContainerColor = Color.Transparent, // INVERTED: Focused is Transparent
+                            focusedContentColor = Color.White
                         )
                     ) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -174,7 +173,7 @@ fun HomeScreen(
                         text = "Sync", 
                         iconRes = R.drawable.ic_sync, 
                         onClick = onSyncSelected,
-                        modifier = Modifier.focusRequester(syncButtonFocusRequester)
+                        modifier = Modifier.focusRequester(syncButtonFocusRequester) 
                     )
                     HeaderButton(text = "Setup", iconRes = R.drawable.ic_setting, onClick = onSettingsSelected)
                     HeaderButton(
@@ -206,7 +205,10 @@ fun HomeScreen(
                             onClick = { onFolderSelected(folder) },
                             modifier = Modifier
                                 .aspectRatio(1.5f)
-                                .then(if (index == 0) Modifier.focusRequester(gridFocusRequester) else Modifier),
+                                .then(if (index == 0) Modifier.focusRequester(gridFocusRequester) else Modifier)
+                                .onFocusChanged {
+                                    if (it.isFocused) view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
+                                },
                             scale = CardDefaults.scale(focusedScale = 1.1f),
                             border = CardDefaults.border(
                                 focusedBorder = Border(androidx.compose.foundation.BorderStroke(3.dp, Color.White))

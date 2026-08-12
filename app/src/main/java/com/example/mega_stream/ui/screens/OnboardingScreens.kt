@@ -1,6 +1,7 @@
 package com.example.mega_stream.ui.screens
 
 import android.os.Environment
+import android.view.SoundEffectConstants
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,8 +10,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -24,6 +27,7 @@ import java.io.File
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun WelcomeScreen(onContinue: () -> Unit) {
+    val view = LocalView.current
     Box(
         modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A)),
         contentAlignment = Alignment.Center
@@ -44,8 +48,15 @@ fun WelcomeScreen(onContinue: () -> Unit) {
             Spacer(modifier = Modifier.height(64.dp))
             Button(
                 onClick = onContinue,
-                modifier = Modifier.width(280.dp).height(56.dp),
-                colors = ButtonDefaults.colors(containerColor = Color.White, contentColor = Color.Black)
+                modifier = Modifier.width(280.dp).height(56.dp).onFocusChanged {
+                    if (it.isFocused) view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
+                },
+                colors = ButtonDefaults.colors(
+                    containerColor = Color.White, 
+                    contentColor = Color.Black,
+                    focusedContainerColor = Color(0xFF1E1E1E),
+                    focusedContentColor = Color.White
+                )
             ) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("GET STARTED", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
@@ -62,6 +73,7 @@ fun OnboardingMenuScreen(
     onSelectStorage: () -> Unit,
     onFinish: () -> Unit
 ) {
+    val view = LocalView.current
     Box(
         modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A)),
         contentAlignment = Alignment.Center
@@ -99,8 +111,15 @@ fun OnboardingMenuScreen(
 
             Button(
                 onClick = onFinish,
-                modifier = Modifier.width(320.dp).height(56.dp),
-                colors = ButtonDefaults.colors(containerColor = Color.Yellow, contentColor = Color.Black)
+                modifier = Modifier.width(320.dp).height(56.dp).onFocusChanged {
+                    if (it.isFocused) view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
+                },
+                colors = ButtonDefaults.colors(
+                    containerColor = Color.White, 
+                    contentColor = Color.Black,
+                    focusedContainerColor = Color(0xFF1E1E1E),
+                    focusedContentColor = Color.White
+                )
             ) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("FINISH SETUP", fontWeight = FontWeight.Bold)
@@ -119,10 +138,18 @@ fun ConfigCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val view = LocalView.current
     Card(
         onClick = onClick,
-        modifier = modifier.height(180.dp),
-        colors = CardDefaults.colors(containerColor = Color(0xFF1A1A1A), focusedContainerColor = Color(0xFF2A2A2A)),
+        modifier = modifier.height(180.dp).onFocusChanged {
+            if (it.isFocused) view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
+        },
+        colors = CardDefaults.colors(
+            containerColor = Color.White, 
+            contentColor = Color.Black,
+            focusedContainerColor = Color(0xFF1A1A1A),
+            focusedContentColor = Color.White
+        ),
         scale = CardDefaults.scale(focusedScale = 1.05f),
         border = CardDefaults.border(focusedBorder = Border(androidx.compose.foundation.BorderStroke(2.dp, Color.White)))
     ) {
@@ -135,11 +162,11 @@ fun ConfigCard(
                 painter = painterResource(id = iconRes),
                 contentDescription = null,
                 modifier = Modifier.size(32.dp),
-                tint = Color.Yellow
+                tint = Color.DarkGray
             )
             Spacer(modifier = Modifier.height(16.dp))
-            Text(text = title, style = MaterialTheme.typography.headlineSmall, color = Color.White)
-            Text(text = desc, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+            Text(text = title, style = MaterialTheme.typography.headlineSmall)
+            Text(text = desc, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -148,6 +175,7 @@ fun ConfigCard(
 @Composable
 fun SetupUrlScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val view = LocalView.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
     var urlText by remember { mutableStateOf(dbHelper.getSetting("config_url", "")) }
 
@@ -201,8 +229,15 @@ fun SetupUrlScreen(onBack: () -> Unit) {
                     dbHelper.saveSetting("config_url", urlText.trim())
                     onBack()
                 },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                colors = ButtonDefaults.colors(containerColor = Color.White, contentColor = Color.Black)
+                modifier = Modifier.fillMaxWidth().height(56.dp).onFocusChanged {
+                    if (it.isFocused) view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
+                },
+                colors = ButtonDefaults.colors(
+                    containerColor = Color.White, 
+                    contentColor = Color.Black,
+                    focusedContainerColor = Color(0xFF1E1E1E),
+                    focusedContentColor = Color.White
+                )
             ) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("SAVE & GO BACK", fontWeight = FontWeight.Bold)
@@ -216,6 +251,7 @@ fun SetupUrlScreen(onBack: () -> Unit) {
 @Composable
 fun SetupStorageScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val view = LocalView.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
     
     var currentPath by remember { mutableStateOf(File(dbHelper.getSetting("cache_path", Environment.getExternalStorageDirectory().absolutePath))) }
@@ -286,8 +322,15 @@ fun SetupStorageScreen(onBack: () -> Unit) {
                             dbHelper.saveSetting("cache_path", currentPath.absolutePath)
                             onBack()
                         },
-                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                        colors = ButtonDefaults.colors(containerColor = Color.Yellow, contentColor = Color.Black)
+                        modifier = Modifier.fillMaxWidth().height(56.dp).onFocusChanged {
+                            if (it.isFocused) view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
+                        },
+                        colors = ButtonDefaults.colors(
+                            containerColor = Color.White, 
+                            contentColor = Color.Black,
+                            focusedContainerColor = Color(0xFF1E1E1E),
+                            focusedContentColor = Color.White
+                        )
                     ) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text("SELECT THIS FOLDER", fontWeight = FontWeight.Bold)
@@ -299,7 +342,15 @@ fun SetupStorageScreen(onBack: () -> Unit) {
                             dbHelper.saveSetting("cache_path", context.cacheDir.absolutePath)
                             onBack()
                         },
-                        modifier = Modifier.fillMaxWidth().height(56.dp)
+                        modifier = Modifier.fillMaxWidth().height(56.dp).onFocusChanged {
+                            if (it.isFocused) view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
+                        },
+                        colors = ButtonDefaults.colors(
+                            containerColor = Color.White, 
+                            contentColor = Color.Black,
+                            focusedContainerColor = Color.Transparent,
+                            focusedContentColor = Color.White
+                        )
                     ) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text("RESET TO AUTO")
@@ -328,15 +379,18 @@ fun FolderItem(
     isParent: Boolean,
     onClick: () -> Unit
 ) {
+    val view = LocalView.current
     Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(56.dp),
+        modifier = Modifier.fillMaxWidth().height(56.dp).onFocusChanged {
+            if (it.isFocused) view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
+        },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color(0xFF1A1A1A),
-            focusedContainerColor = Color.White,
-            contentColor = Color.White,
-            focusedContentColor = Color.Black
+            containerColor = Color.White, 
+            contentColor = Color.Black,
+            focusedContainerColor = Color(0xFF1A1A1A),
+            focusedContentColor = Color.White
         )
     ) {
         Row(

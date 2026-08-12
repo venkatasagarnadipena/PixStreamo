@@ -24,35 +24,24 @@ object MegaManager {
     fun init(context: Context) {
         if (isInitialized) return
         try {
-            val startTime = System.currentTimeMillis()
             if (!Python.isStarted()) {
                 Python.start(AndroidPlatform(context))
             }
             isInitialized = true
-            PixLog.perf("MegaManager", "EngineInitTime", "${System.currentTimeMillis() - startTime}ms")
         } catch (e: Exception) {
             PixLog.e("MegaManager", "Python Init Error", e)
         }
     }
 
-    /**
-     * PRIORITY QUEUE: All calls to Python are now strictly sequential.
-     * This prevents 512MB devices from crashing the Python engine with multiple requests.
-     */
     suspend fun listSharedFolder(url: String): List<SharedMediaItem> = withContext(Dispatchers.IO) {
         mutex.withLock {
-            val startTime = System.currentTimeMillis()
-            PixLog.d("MegaManager", "Fetching folder: ${PixLog.mask(url)}")
-            
             try {
                 val py = Python.getInstance()
                 val module = py.getModule("mega_manager")
                 val resultJson = module.callAttr("list_shared_folder", url).toString()
                 val result = JSONObject(resultJson)
                 
-                if (result.getString("status") != "success") {
-                    return@withLock emptyList<SharedMediaItem>()
-                }
+                if (result.getString("status") != "success") return@withLock emptyList<SharedMediaItem>()
                 
                 val nodesArray = result.getJSONArray("nodes")
                 val itemsList = mutableListOf<SharedMediaItem>()
@@ -65,11 +54,9 @@ object MegaManager {
                         fa = nodeObj.optString("fa", "")
                     ))
                 }
-                
-                PixLog.perf("MegaManager", "FolderFetchTime", "${System.currentTimeMillis() - startTime}ms")
                 itemsList
             } catch (e: Exception) {
-                PixLog.e("MegaManager", "listSharedFolder failed", e)
+                PixLog.e("MegaManager", "List folder failed")
                 emptyList<SharedMediaItem>()
             }
         }
@@ -77,7 +64,6 @@ object MegaManager {
 
     suspend fun downloadFile(url: String, destPath: String, forceFilename: String? = null): Boolean = withContext(Dispatchers.IO) {
         mutex.withLock {
-            val startTime = System.currentTimeMillis()
             try {
                 val py = Python.getInstance()
                 val module = py.getModule("mega_manager")
@@ -88,11 +74,10 @@ object MegaManager {
                 if (success) {
                     val handleId = if (url.contains("#")) url.split("#")[0] else url
                     CacheManager.notifyFileReady(handleId)
-                    PixLog.perf("MegaManager", "FileDownloadTime", "${System.currentTimeMillis() - startTime}ms")
                 }
                 success
             } catch (e: Exception) {
-                PixLog.e("MegaManager", "downloadFile failed", e)
+                PixLog.e("MegaManager", "Download failed")
                 false
             }
         }

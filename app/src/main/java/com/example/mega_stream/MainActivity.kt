@@ -1,7 +1,6 @@
 package com.example.mega_stream
 
 import android.os.Bundle
-import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import androidx.activity.ComponentActivity
@@ -22,17 +21,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.MaterialTheme
-import com.example.mega_stream.core.engine.CacheManager
 import com.example.mega_stream.core.engine.MegaManager
-import com.example.mega_stream.core.network.PixLog
 import com.example.mega_stream.core.storage.DatabaseHelper
 import com.example.mega_stream.ui.screens.*
 import com.example.mega_stream.ui.theme.Mega_streamTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -40,23 +34,18 @@ import java.nio.charset.StandardCharsets
 
 class MainActivity : ComponentActivity() {
     
-    // NATIVE OVERRIDE: Monitor physical remote control events
-    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        Log.d("PIX_INPUT", "NATIVE KeyDown: $keyCode")
-        return super.onKeyDown(keyCode, event)
-    }
+    // Removed PIX_INPUT diagnostic key monitor for production
 
     @OptIn(ExperimentalTvMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // CRITICAL: Ensure window is ready for focus
         window.decorView.isFocusable = true
         window.decorView.isFocusableInTouchMode = true
         
+        // Final Production Engine Init
         CoroutineScope(Dispatchers.IO).launch {
             MegaManager.init(applicationContext)
-            startPerformanceMonitor()
         }
         
         setContent {
@@ -72,21 +61,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startPerformanceMonitor() {
-        CoroutineScope(Dispatchers.Default).launch {
-            while (isActive) {
-                delay(60000) 
-                val runtime = Runtime.getRuntime()
-                val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / 1024 / 1024
-                val totalMem = runtime.maxMemory() / 1024 / 1024
-                PixLog.perf("System", "RAM_Usage", "${usedMem}MB / ${totalMem}MB")
-            }
-        }
-    }
-
     override fun onResume() {
         super.onResume()
-        // Ensure focus is restored to the window
         window.decorView.post {
             window.decorView.requestFocus()
         }
@@ -105,9 +81,8 @@ fun AppNavigation() {
     NavHost(
         navController = navController, 
         startDestination = startDest,
-        // FAST TRANSITIONS to prevent focus loss during animations
-        enterTransition = { fadeIn(animationSpec = tween(200)) },
-        exitTransition = { fadeOut(animationSpec = tween(200)) }
+        enterTransition = { fadeIn(animationSpec = tween(300)) },
+        exitTransition = { fadeOut(animationSpec = tween(300)) }
     ) {
         composable("welcome") { WelcomeScreen(onContinue = { navController.navigate("onboarding_menu") }) }
         

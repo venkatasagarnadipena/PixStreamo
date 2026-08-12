@@ -1,7 +1,6 @@
 package com.example.mega_stream.core.engine
 
 import android.content.Context
-import android.util.Log
 import com.example.mega_stream.core.network.PixLog
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -14,7 +13,6 @@ object CacheManager {
 
     suspend fun notifyFileReady(handleId: String) {
         _fileReadyEvents.emit(handleId)
-        PixLog.d("CacheManager", "Signal emitted for file: $handleId")
     }
 
     fun getFolderCacheDir(context: Context, folderUrl: String): File {
@@ -36,7 +34,7 @@ object CacheManager {
                     return customDir
                 }
             } catch (e: Exception) {
-                PixLog.e("CacheManager", "Custom path failed: $savedPath", e)
+                PixLog.e("CacheManager", "Storage path failed")
             }
         }
         
@@ -49,21 +47,17 @@ object CacheManager {
         try {
             folderDir.listFiles()?.forEach { it.delete() }
             folderDir.delete()
-            PixLog.i("CacheManager", "Folder cache cleared: ${folderDir.name}")
         } catch (e: Exception) {
-            PixLog.e("CacheManager", "Clear error", e)
+            PixLog.e("CacheManager", "Clear error")
         }
     }
 
     fun deleteAllCache(context: Context) {
         val root = getOptimalCacheDir(context)
         root.deleteRecursively()
-        PixLog.i("CacheManager", "Global cache wiped.")
     }
 
     fun pruneCacheExcept(folderDir: File, keepHandles: Set<String>) {
-        val startTime = System.currentTimeMillis()
-        var prunedCount = 0
         try {
             val files = folderDir.listFiles() ?: return
             val keepIds = keepHandles.map { it.split("#")[0] }.toSet()
@@ -74,16 +68,11 @@ object CacheManager {
                     val id = fileName.removePrefix("dl_").removeSuffix(".jpg")
                     if (!keepIds.contains(id)) {
                         file.delete()
-                        prunedCount++
                     }
                 }
             }
-            if (prunedCount > 0) {
-                PixLog.perf("CacheManager", "PrunedFiles", prunedCount.toString())
-                PixLog.perf("CacheManager", "PruneTime", "${System.currentTimeMillis() - startTime}ms")
-            }
         } catch (e: Exception) {
-            PixLog.e("CacheManager", "Prune error", e)
+            PixLog.e("CacheManager", "Prune error")
         }
     }
 }

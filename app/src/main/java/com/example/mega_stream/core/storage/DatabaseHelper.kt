@@ -17,20 +17,17 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
     }
 
     override fun onCreate(db: SQLiteDatabase) {
-        PixLog.i("Database", "Creating tables for schema $DATABASE_NAME")
         db.execSQL(CREATE_TABLE_FOLDERS)
         db.execSQL(CREATE_TABLE_SETTINGS)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        PixLog.i("Database", "Upgrading from $oldVersion to $newVersion")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_FOLDERS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_SETTINGS")
         onCreate(db)
     }
 
     fun getAllFolders(): List<Folder> {
-        val startTime = System.currentTimeMillis()
         val folders = mutableListOf<Folder>()
         val db = this.readableDatabase
         val cursor = db.rawQuery("SELECT * FROM $TABLE_FOLDERS ORDER BY $COLUMN_ID ASC", null)
@@ -45,16 +42,14 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
                 } while (cursor.moveToNext())
             }
         } catch (e: Exception) {
-            PixLog.e("Database", "Error reading folders", e)
+            // Silenced for production
         } finally {
             cursor.close()
         }
-        PixLog.perf("Database", "FetchAllFolders", "${System.currentTimeMillis() - startTime}ms")
         return folders
     }
 
     fun mergeFolders(newFolders: List<Pair<String, String>>) {
-        val startTime = System.currentTimeMillis()
         val db = this.writableDatabase
         db.beginTransaction()
         try {
@@ -66,13 +61,11 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
                 db.insertWithOnConflict(TABLE_FOLDERS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
             }
             db.setTransactionSuccessful()
-            PixLog.i("Database", "Additive Merge complete: ${newFolders.size} folders processed.")
         } catch (e: Exception) {
-            PixLog.e("Database", "Merge failed", e)
+            // Silenced for production
         } finally {
             db.endTransaction()
         }
-        PixLog.perf("Database", "MergeTime", "${System.currentTimeMillis() - startTime}ms")
     }
 
     fun saveSetting(key: String, value: String) {
@@ -82,7 +75,6 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
             put(COLUMN_SETTING_VAL, value)
         }
         db.replace(TABLE_SETTINGS, null, values)
-        PixLog.d("Database", "Setting updated: $key")
     }
 
     fun getSetting(key: String, defaultValue: String): String {
@@ -115,11 +107,11 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
         val db = this.writableDatabase
         db.delete(TABLE_FOLDERS, null, null)
         db.delete(TABLE_SETTINGS, null, null)
-        PixLog.i("Database", "All user data wiped.")
     }
 
     companion object {
-        private const val DATABASE_NAME = "pix_prod_v2.db" 
+        // FINAL PRODUCTION DB NAME: Ensures no legacy data from dev-cycle is loaded
+        private const val DATABASE_NAME = "pixstreamo_release.db"
         private const val DATABASE_VERSION = 1
         private const val TABLE_FOLDERS = "folders"
         private const val COLUMN_ID = "id"

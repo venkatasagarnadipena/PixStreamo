@@ -1,13 +1,16 @@
 package com.example.mega_stream.ui.components
 
+import android.view.SoundEffectConstants
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.*
@@ -20,14 +23,20 @@ fun HeaderButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val view = LocalView.current
+    
     Button(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.onFocusChanged { 
+            if (it.isFocused) {
+                view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
+            }
+        },
         colors = ButtonDefaults.colors(
-            containerColor = Color(0xFF1E1E1E),
-            contentColor = Color.White,
-            focusedContainerColor = Color.White,
-            focusedContentColor = Color.Black
+            containerColor = Color.White, // INVERTED: Default is now White
+            contentColor = Color.Black,
+            focusedContainerColor = Color(0xFF1E1E1E), // INVERTED: Focused is now Dark
+            focusedContentColor = Color.White
         )
     ) {
         Row(

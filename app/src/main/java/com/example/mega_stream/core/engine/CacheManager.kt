@@ -1,81 +1,89 @@
 package com.example.mega_stream.core.engine
 
 import android.content.Context
-import android.os.Environment
-import androidx.core.content.ContextCompat
-import com.example.mega_stream.core.storage.DatabaseHelper
+import android.util.Log
+import com.example.mega_stream.core.network.PixLog
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import java.io.File
 
 object CacheManager {
-    private val _fileReadyEvents = MutableSharedFlow<String>(extraBufferCapacity = 64)
-    val fileReadyEvents = _fileReadyEvents.asSharedFlow()
+    private val _fileReadyEvents = MutableSharedFlow<String>(extraBufferCapacity = 10)
+    val fileReadyEvents: SharedFlow<String> = _fileReadyEvents.asSharedFlow()
 
-    fun notifyFileReady(handleId: String) {
-        _fileReadyEvents.tryEmit(handleId)
+    suspend fun notifyFileReady(handleId: String) {
+        _fileReadyEvents.emit(handleId)
+        PixLog.d("CacheManager", "Signal emitted for file: $handleId")
     }
 
     fun getFolderCacheDir(context: Context, folderUrl: String): File {
-        val folderHash = folderUrl.hashCode().toString()
-        val baseDir = getOptimalCacheDir(context)
-        val folderDir = File(baseDir, "folder_$folderHash")
-        if (!folderDir.exists()) folderDir.mkdirs()
-        return folderDir
+        val hash = folderUrl.hashCode().toString()
+        val dir = File(getOptimalCacheDir(context), "f_$hash")
+        if (!dir.exists()) dir.mkdirs()
+        return dir
     }
 
     fun getOptimalCacheDir(context: Context): File {
-        val dbHelper = DatabaseHelper.getInstance(context)
-        val userPath = dbHelper.getSetting("storage_path", "AUTO")
+        val dbHelper = com.example.mega_stream.core.storage.DatabaseHelper.getInstance(context)
+        val savedPath = dbHelper.getSetting("cache_path", "")
         
-        if (userPath != "AUTO" && userPath.isNotEmpty()) {
-            val userDir = File(userPath)
-            if (userDir.exists() && userDir.canWrite()) {
-                val finalDir = File(userDir, "mega_stream_v3")
-                if (!finalDir.exists()) finalDir.mkdirs()
-                return finalDir
+        if (savedPath.isNotEmpty()) {
+            val customDir = File(savedPath, "PixStreamoCache")
+            try {
+                if (!customDir.exists()) customDir.mkdirs()
+                if (customDir.canWrite()) {
+                    return customDir
+                }
+            } catch (e: Exception) {
+                PixLog.e("CacheManager", "Custom path failed: $savedPath", e)
             }
         }
-
-        val externalFilesDirs = ContextCompat.getExternalFilesDirs(context, null)
-        for (dir in externalFilesDirs) {
-            if (dir != null) {
-                val path = File(dir, "mega_stream_v3")
-                if (!path.exists()) path.mkdirs()
-                return path
-            }
-        }
-        val internalCache = File(context.cacheDir, "mega_stream_v3")
-        if (!internalCache.exists()) internalCache.mkdirs()
-        return internalCache
+        
+        val internalDir = File(context.cacheDir, "PixStreamoCache")
+        if (!internalDir.exists()) internalDir.mkdirs()
+        return internalDir
     }
 
     fun clearFolderCache(folderDir: File) {
-        if (StreamingWorker.getActiveFolderUrl().hashCode().toString() in folderDir.name) {
-            return
-        }
-        if (folderDir.exists()) {
-            folderDir.deleteRecursively()
+        try {
+            folderDir.listFiles()?.forEach { it.delete() }
+            folderDir.delete()
+            PixLog.i("CacheManager", "Folder cache cleared: ${folderDir.name}")
+        } catch (e: Exception) {
+            PixLog.e("CacheManager", "Clear error", e)
         }
     }
 
     fun deleteAllCache(context: Context) {
-        try {
-            val baseDir = getOptimalCacheDir(context)
-            if (baseDir.exists()) baseDir.deleteRecursively()
-        } catch (e: Exception) {}
+        val root = getOptimalCacheDir(context)
+        root.deleteRecursively()
+        PixLog.i("CacheManager", "Global cache wiped.")
     }
 
     fun pruneCacheExcept(folderDir: File, keepHandles: Set<String>) {
-        if (!folderDir.exists()) return
-        val files = folderDir.listFiles()?.filter { it.isFile && it.name.startsWith("dl_") } ?: return
-        val keepIds = keepHandles.map { it.split("#")[0] }.toSet()
-
-        for (file in files) {
-            val fileId = file.name.removePrefix("dl_").removeSuffix(".jpg")
-            if (fileId !in keepIds) {
-                file.delete()
+        val startTime = System.currentTimeMillis()
+        var prunedCount = 0
+        try {
+            val files = folderDir.listFiles() ?: return
+            val keepIds = keepHandles.map { it.split("#")[0] }.toSet()
+            
+            files.forEach { file ->
+                val fileName = file.name
+                if (fileName.startsWith("dl_")) {
+                    val id = fileName.removePrefix("dl_").removeSuffix(".jpg")
+                    if (!keepIds.contains(id)) {
+                        file.delete()
+                        prunedCount++
+                    }
+                }
             }
+            if (prunedCount > 0) {
+                PixLog.perf("CacheManager", "PrunedFiles", prunedCount.toString())
+                PixLog.perf("CacheManager", "PruneTime", "${System.currentTimeMillis() - startTime}ms")
+            }
+        } catch (e: Exception) {
+            PixLog.e("CacheManager", "Prune error", e)
         }
     }
 }

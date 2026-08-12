@@ -36,7 +36,11 @@ fun HomeScreen(
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
     var folders by remember { mutableStateOf(emptyList<Folder>()) }
-    val focusRequester = remember { FocusRequester() }
+    
+    // FOCUS REQUERSTERS: Essential for TV D-Pad support
+    val syncButtonFocusRequester = remember { FocusRequester() }
+    val gridFocusRequester = remember { FocusRequester() }
+    
     val scope = rememberCoroutineScope()
     
     var isSyncingFolders by remember { mutableStateOf(false) }
@@ -45,27 +49,37 @@ fun HomeScreen(
     fun refreshFolders() {
         val latestFolders = dbHelper.getAllFolders()
         folders = latestFolders
-        Log.d("HomeScreen", "REFRESH: Found ${latestFolders.size} folders.")
+        Log.d("HomeScreen", "UI State Update: ${latestFolders.size} folders found.")
     }
 
     LaunchedEffect(Unit) {
         refreshFolders()
+        
+        // CRITICAL FOCUS HANDOFF: 
+        // Wait for animations to settle, then aggressively claim focus for the D-Pad.
+        delay(1000) 
+        if (folders.isEmpty()) {
+            Log.d("HomeScreen", "Focusing Sync button (Empty Library)")
+            try { syncButtonFocusRequester.requestFocus() } catch (e: Exception) {
+                Log.e("HomeScreen", "Focus request failed", e)
+            }
+        } else {
+            Log.d("HomeScreen", "Focusing Grid (Populated Library)")
+            try { gridFocusRequester.requestFocus() } catch (e: Exception) {}
+        }
+
+        // Silent background check
         isSyncingFolders = true 
         scope.launch {
             ConfigFetcher(context).fetchAndSync()
             refreshFolders()
             isSyncingFolders = false
-            if (folders.isNotEmpty()) {
-                delay(500)
-                try { focusRequester.requestFocus() } catch (e: Exception) {}
-            }
         }
     }
 
-    // POLISHED RESET DIALOG
+    // RESET CONFIRMATION DIALOG
     if (showResetDialog) {
         Dialog(onDismissRequest = { showResetDialog = false }) {
-            // Clean container without redundant full-screen Box
             Column(
                 modifier = Modifier
                     .width(440.dp)
@@ -91,13 +105,13 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // DELETE BUTTON - Centered text and high contrast
                     Button(
                         onClick = {
                             dbHelper.resetAllData()
                             CacheManager.deleteAllCache(context)
                             folders = emptyList()
                             showResetDialog = false
+                            try { syncButtonFocusRequester.requestFocus() } catch (e: Exception) {}
                         },
                         modifier = Modifier.weight(1f).height(48.dp),
                         colors = ButtonDefaults.colors(
@@ -108,15 +122,10 @@ fun HomeScreen(
                         )
                     ) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "Delete",
-                                style = MaterialTheme.typography.labelLarge,
-                                maxLines = 1
-                            )
+                            Text(text = "Delete", style = MaterialTheme.typography.labelLarge)
                         }
                     }
                     
-                    // CANCEL BUTTON - Centered text and secondary style
                     OutlinedButton(
                         onClick = { showResetDialog = false },
                         modifier = Modifier.weight(1f).height(48.dp),
@@ -128,11 +137,7 @@ fun HomeScreen(
                         )
                     ) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "Cancel",
-                                style = MaterialTheme.typography.labelLarge,
-                                maxLines = 1
-                            )
+                            Text(text = "Cancel", style = MaterialTheme.typography.labelLarge)
                         }
                     }
                 }
@@ -165,9 +170,13 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    HeaderButton(text = "Sync", iconRes = R.drawable.ic_sync, onClick = onSyncSelected)
+                    HeaderButton(
+                        text = "Sync", 
+                        iconRes = R.drawable.ic_sync, 
+                        onClick = onSyncSelected,
+                        modifier = Modifier.focusRequester(syncButtonFocusRequester)
+                    )
                     HeaderButton(text = "Setup", iconRes = R.drawable.ic_setting, onClick = onSettingsSelected)
-                    
                     HeaderButton(
                         text = "Reset", 
                         iconRes = R.drawable.ic_reset, 
@@ -181,13 +190,7 @@ fun HomeScreen(
             if (folders.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        if (isSyncingFolders) {
-                            androidx.compose.material3.CircularProgressIndicator(color = Color.White)
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(text = "Populating folders from Mega...", color = Color.Gray)
-                        } else {
-                            Text(text = "Your library is empty. Use 'Sync' to import folders.", color = Color.Gray)
-                        }
+                        Text(text = "Your library is empty. Use 'Sync' to import folders.", color = Color.Gray)
                     }
                 }
             } else {
@@ -203,7 +206,7 @@ fun HomeScreen(
                             onClick = { onFolderSelected(folder) },
                             modifier = Modifier
                                 .aspectRatio(1.5f)
-                                .then(if (index == 0) Modifier.focusRequester(focusRequester) else Modifier),
+                                .then(if (index == 0) Modifier.focusRequester(gridFocusRequester) else Modifier),
                             scale = CardDefaults.scale(focusedScale = 1.1f),
                             border = CardDefaults.border(
                                 focusedBorder = Border(androidx.compose.foundation.BorderStroke(3.dp, Color.White))

@@ -1,7 +1,6 @@
 package com.example.mega_stream.core.network
 
 import android.content.Context
-import android.util.Log
 import com.example.mega_stream.core.storage.DatabaseHelper
 import com.example.mega_stream.core.engine.MegaManager
 import kotlinx.coroutines.*
@@ -16,9 +15,11 @@ class ConfigFetcher(private val context: Context) {
 
     companion object {
         const val DEFAULT_JSON_URL = "https://mega.nz/file/AhQR3AxC#ZNvUcirmWJeqlTQAjsODb0L0teZL87vdNGOxf_l-NxY"
-        private const val TAG = "PIX_SYNC"
         private val syncMutex = Mutex()
         private val globalScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        
+        // SYNC COOLDOWN: Prevent redundant syncing within 3 minutes
+        private var lastSyncTime = 0L
     }
 
     fun startAsyncImport() {
@@ -28,27 +29,29 @@ class ConfigFetcher(private val context: Context) {
     }
 
     /**
-     * STABLE SYNC: Uses forced filenames to ensure Kotlin can find the JSON.
+     * OPTIMIZED SYNC: Checks for cooldown and ensures data integrity.
      */
     suspend fun fetchAndSync(): Boolean = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        if (now - lastSyncTime < 180000) { // 3 minutes cooldown
+            PixLog.d("ConfigFetcher", "Sync skipped (Cooldown active)")
+            return@withContext false
+        }
+
         syncMutex.withLock {
             val userUrl = dbHelper.getSetting("config_url", DEFAULT_JSON_URL)
             val finalUrl = if (userUrl.isEmpty()) DEFAULT_JSON_URL else userUrl
             
-            Log.i(TAG, "[SYNC_START] URL: $finalUrl")
+            PixLog.i("ConfigFetcher", "Sync starting...")
             
             try {
                 val cacheDir = context.cacheDir
                 val configFileName = "config.json"
                 val expectedFile = File(cacheDir, configFileName)
-                
                 if (expectedFile.exists()) expectedFile.delete()
 
-                // Step 1: Download via Python with FORCED filename
-                // This fixes the bug where new URLs used their original names (e.g. Validation.json)
                 val success = MegaManager.downloadFile(finalUrl, cacheDir.absolutePath, configFileName)
                 
-                // Step 2: ROBUST FILE CHECK
                 var fileFound = false
                 repeat(10) { 
                     if (expectedFile.exists() && expectedFile.length() > 5) {
@@ -60,8 +63,6 @@ class ConfigFetcher(private val context: Context) {
                 
                 if (success && fileFound) {
                     val body = expectedFile.readText().trim()
-                    Log.i(TAG, "[STEP 2] Success reading JSON. Content: $body")
-                    
                     val folderPairs = mutableListOf<Pair<String, String>>()
                     try {
                         if (body.startsWith("[")) {
@@ -87,22 +88,22 @@ class ConfigFetcher(private val context: Context) {
                             }
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "[PARSE_ERROR] ${e.message}")
+                        PixLog.e("ConfigFetcher", "Parse Error", e)
                     }
 
                     if (folderPairs.isNotEmpty()) {
-                        dbHelper.mergeFolders(folderPairs)
-                        Log.i(TAG, "[STEP 3] Saved ${folderPairs.size} folders to DB.")
+                        // ENSURE ATOMICITY: Use NonCancellable to prevent DB corruption during screen transition
+                        withContext(NonCancellable) {
+                            dbHelper.mergeFolders(folderPairs)
+                        }
+                        lastSyncTime = System.currentTimeMillis()
                         expectedFile.delete()
                         return@withContext true
                     }
-                } else {
-                    Log.e(TAG, "[SYNC_FAIL] Engine=$success, FileExists=${expectedFile.exists()}")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "[CRITICAL] Sync Error: ${e.message}")
+                PixLog.e("ConfigFetcher", "Sync Error", e)
             }
-            
             return@withContext false
         }
     }

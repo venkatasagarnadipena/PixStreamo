@@ -1,6 +1,8 @@
 package com.example.mega_stream
 
 import android.os.Bundle
+import android.util.Log
+import android.view.KeyEvent
 import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -23,28 +25,38 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import com.example.mega_stream.core.engine.CacheManager
 import com.example.mega_stream.core.engine.MegaManager
+import com.example.mega_stream.core.network.PixLog
 import com.example.mega_stream.core.storage.DatabaseHelper
 import com.example.mega_stream.ui.screens.*
 import com.example.mega_stream.ui.theme.Mega_streamTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
 class MainActivity : ComponentActivity() {
+    
+    // NATIVE OVERRIDE: Monitor physical remote control events
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        Log.d("PIX_INPUT", "NATIVE KeyDown: $keyCode")
+        return super.onKeyDown(keyCode, event)
+    }
+
     @OptIn(ExperimentalTvMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // CRITICAL: Ensure window is ready for focus
         window.decorView.isFocusable = true
         window.decorView.isFocusableInTouchMode = true
-        window.decorView.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
-
-        // PERFORMANCE FIX: Init MegaManager in a background thread to prevent blocking Main/UI thread
+        
         CoroutineScope(Dispatchers.IO).launch {
             MegaManager.init(applicationContext)
+            startPerformanceMonitor()
         }
         
         setContent {
@@ -60,9 +72,24 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun startPerformanceMonitor() {
+        CoroutineScope(Dispatchers.Default).launch {
+            while (isActive) {
+                delay(60000) 
+                val runtime = Runtime.getRuntime()
+                val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / 1024 / 1024
+                val totalMem = runtime.maxMemory() / 1024 / 1024
+                PixLog.perf("System", "RAM_Usage", "${usedMem}MB / ${totalMem}MB")
+            }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
-        window.decorView.requestFocus()
+        // Ensure focus is restored to the window
+        window.decorView.post {
+            window.decorView.requestFocus()
+        }
     }
 }
 
@@ -78,10 +105,9 @@ fun AppNavigation() {
     NavHost(
         navController = navController, 
         startDestination = startDest,
-        enterTransition = { fadeIn(animationSpec = tween(500)) + scaleIn(initialScale = 0.95f, animationSpec = tween(500)) },
-        exitTransition = { fadeOut(animationSpec = tween(500)) },
-        popEnterTransition = { fadeIn(animationSpec = tween(500)) },
-        popExitTransition = { fadeOut(animationSpec = tween(500)) + scaleOut(targetScale = 0.95f, animationSpec = tween(500)) }
+        // FAST TRANSITIONS to prevent focus loss during animations
+        enterTransition = { fadeIn(animationSpec = tween(200)) },
+        exitTransition = { fadeOut(animationSpec = tween(200)) }
     ) {
         composable("welcome") { WelcomeScreen(onContinue = { navController.navigate("onboarding_menu") }) }
         
@@ -108,7 +134,7 @@ fun AppNavigation() {
         composable("sync_portal") {
             SyncScreen(
                 onSyncComplete = {
-                    navController.navigate("splash") { popUpTo("home") { inclusive = true } }
+                    navController.navigate("home") { popUpTo("home") { inclusive = true } }
                 },
                 onBack = { navController.popBackStack() }
             )
@@ -123,11 +149,7 @@ fun AppNavigation() {
                 },
                 onSettingsSelected = { navController.navigate("onboarding_menu") },
                 onSyncSelected = { navController.navigate("sync_portal") },
-                onCompleteReset = {
-                    dbHelper.resetAllData()
-                    CacheManager.deleteAllCache(context)
-                    navController.navigate("welcome") { popUpTo(0) { inclusive = true } }
-                }
+                onCompleteReset = {}
             )
         }
         

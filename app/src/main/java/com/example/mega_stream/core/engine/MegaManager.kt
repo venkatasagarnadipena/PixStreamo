@@ -1,9 +1,9 @@
 package com.example.mega_stream.core.engine
 
 import android.content.Context
-import android.util.Log
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
+import com.example.mega_stream.core.network.PixLog
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -21,34 +21,38 @@ object MegaManager {
     private var isInitialized = false
     private val mutex = Mutex()
 
-    /**
-     * Non-blocking init for fast startup.
-     */
     fun init(context: Context) {
         if (isInitialized) return
         try {
+            val startTime = System.currentTimeMillis()
             if (!Python.isStarted()) {
                 Python.start(AndroidPlatform(context))
             }
             isInitialized = true
-            Log.d("MegaManager", "Python Engine started successfully")
+            PixLog.perf("MegaManager", "EngineInitTime", "${System.currentTimeMillis() - startTime}ms")
         } catch (e: Exception) {
-            Log.e("MegaManager", "Python Init Error", e)
+            PixLog.e("MegaManager", "Python Init Error", e)
         }
     }
 
     /**
-     * List shared folders on a background thread with singleton access.
+     * PRIORITY QUEUE: All calls to Python are now strictly sequential.
+     * This prevents 512MB devices from crashing the Python engine with multiple requests.
      */
     suspend fun listSharedFolder(url: String): List<SharedMediaItem> = withContext(Dispatchers.IO) {
         mutex.withLock {
+            val startTime = System.currentTimeMillis()
+            PixLog.d("MegaManager", "Fetching folder: ${PixLog.mask(url)}")
+            
             try {
                 val py = Python.getInstance()
                 val module = py.getModule("mega_manager")
                 val resultJson = module.callAttr("list_shared_folder", url).toString()
                 val result = JSONObject(resultJson)
                 
-                if (result.getString("status") != "success") return@withLock emptyList<SharedMediaItem>()
+                if (result.getString("status") != "success") {
+                    return@withLock emptyList<SharedMediaItem>()
+                }
                 
                 val nodesArray = result.getJSONArray("nodes")
                 val itemsList = mutableListOf<SharedMediaItem>()
@@ -61,20 +65,19 @@ object MegaManager {
                         fa = nodeObj.optString("fa", "")
                     ))
                 }
+                
+                PixLog.perf("MegaManager", "FolderFetchTime", "${System.currentTimeMillis() - startTime}ms")
                 itemsList
             } catch (e: Exception) {
-                Log.e("MegaManager", "listSharedFolder failed", e)
+                PixLog.e("MegaManager", "listSharedFolder failed", e)
                 emptyList<SharedMediaItem>()
             }
         }
     }
 
-    /**
-     * Download files on a background thread with singleton access.
-     * Updated to support explicit filenames and event notification.
-     */
     suspend fun downloadFile(url: String, destPath: String, forceFilename: String? = null): Boolean = withContext(Dispatchers.IO) {
         mutex.withLock {
+            val startTime = System.currentTimeMillis()
             try {
                 val py = Python.getInstance()
                 val module = py.getModule("mega_manager")
@@ -83,14 +86,13 @@ object MegaManager {
                 val success = result.getString("status") == "success"
                 
                 if (success) {
-                    // Extract ID from handle if possible for notification
                     val handleId = if (url.contains("#")) url.split("#")[0] else url
                     CacheManager.notifyFileReady(handleId)
+                    PixLog.perf("MegaManager", "FileDownloadTime", "${System.currentTimeMillis() - startTime}ms")
                 }
-                
                 success
             } catch (e: Exception) {
-                Log.e("MegaManager", "downloadFile failed", e)
+                PixLog.e("MegaManager", "downloadFile failed", e)
                 false
             }
         }

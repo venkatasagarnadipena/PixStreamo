@@ -1,7 +1,7 @@
 package com.example.mega_stream.core.engine
 
 import android.content.Context
-import android.util.Log
+import com.example.mega_stream.core.network.PixLog
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
@@ -48,14 +48,13 @@ object StreamingWorker {
                     return@withLock
                 }
                 
+                PixLog.i("StreamingWorker", "Initializing folder: ${PixLog.mask(url)} at index $initialIndex")
                 stopLocked()
                 activeFolderUrl = url
                 mediaItems = items
                 _currentIndex.value = initialIndex
                 _isWindowReady.value = false 
                 cacheDir = CacheManager.getFolderCacheDir(context, url)
-                
-                Log.d("STREAMING_WORKER", "Initializing Rolling Window for: $url at index $initialIndex")
                 startEngineLocked()
             }
         }
@@ -63,6 +62,7 @@ object StreamingWorker {
 
     private fun startEngineLocked() {
         engineJob = scope.launch {
+            PixLog.d("StreamingWorker", "Engine started for ${mediaItems.size} items.")
             while (isActive) {
                 val items = mediaItems
                 val currentCacheDir = cacheDir
@@ -77,7 +77,6 @@ object StreamingWorker {
                 val windowEnd = (windowStart + WINDOW_SIZE).coerceAtMost(items.size - 1)
                 val windowRange = windowStart..windowEnd
 
-                // Sequential window fetching but with priority to the current item
                 for (i in windowRange) {
                     if (!isActive) break
                     if (i >= items.size) break
@@ -91,10 +90,7 @@ object StreamingWorker {
                         _statusLabel.value = "Downloading ${i + 1}/${items.size}..."
                         
                         val success = MegaManager.downloadFile(item.handle, currentCacheDir.absolutePath)
-                        
-                        if (success && file.exists()) {
-                            CacheManager.notifyFileReady(handleId)
-                        }
+                        PixLog.d("StreamingWorker", "Window download: ${item.name} -> $success")
                     }
                     
                     if (_currentIndex.value != currentPos) break
@@ -147,10 +143,10 @@ object StreamingWorker {
             val next = current + 1
             if (next < mediaItems.size) {
                 _currentIndex.value = next
+                PixLog.d("StreamingWorker", "Slideshow advanced to index $next")
             } else {
-                // EXPLICIT END SIGNAL: Keep isSlideshowActive=true but set label to END_OF_SHOW
-                // This ensures the UI knows the show reached the end WHILE ACTIVE.
                 _statusLabel.value = "END_OF_SHOW"
+                PixLog.i("StreamingWorker", "End of folder reached during slideshow.")
             }
         }
     }
@@ -163,19 +159,17 @@ object StreamingWorker {
         } else {
             _isSlideshowActive.value = !_isSlideshowActive.value
         }
+        PixLog.i("StreamingWorker", "Slideshow active: ${_isSlideshowActive.value}")
     }
 
     fun jumpTo(index: Int, pause: Boolean) {
         if (mediaItems.isEmpty()) return
         val target = index.coerceIn(0, mediaItems.size - 1)
         
-        if (_statusLabel.value == "END_OF_SHOW") {
-            _statusLabel.value = "Ready"
-        }
-
         if (_currentIndex.value != target) {
             _currentIndex.value = target
             _isWindowReady.value = false 
+            PixLog.d("StreamingWorker", "Jumped to index $target")
         }
         if (pause) _isSlideshowActive.value = false
     }
@@ -183,7 +177,6 @@ object StreamingWorker {
     fun next() {
         _isSlideshowActive.value = false
         if (_statusLabel.value == "END_OF_SHOW") {
-            _statusLabel.value = "Ready"
             _currentIndex.value = 0
         } else {
             advanceIndex()
@@ -193,7 +186,6 @@ object StreamingWorker {
     fun previous() {
         _isSlideshowActive.value = false
         if (_statusLabel.value == "END_OF_SHOW") {
-            _statusLabel.value = "Ready"
             _currentIndex.value = mediaItems.size - 1
         } else {
             if (_currentIndex.value > 0) _currentIndex.value--
@@ -206,5 +198,6 @@ object StreamingWorker {
         activeFolderUrl = ""
         _statusLabel.value = "Stopped"
         _isSlideshowActive.value = false
+        PixLog.d("StreamingWorker", "Engine stopped.")
     }
 }

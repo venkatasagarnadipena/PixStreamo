@@ -71,15 +71,24 @@ object MegaManager {
 
     /**
      * Download files on a background thread with singleton access.
+     * Updated to support explicit filenames and event notification.
      */
-    suspend fun downloadFile(url: String, destPath: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun downloadFile(url: String, destPath: String, forceFilename: String? = null): Boolean = withContext(Dispatchers.IO) {
         mutex.withLock {
             try {
                 val py = Python.getInstance()
                 val module = py.getModule("mega_manager")
-                val resultJson = module.callAttr("download_file", url, destPath).toString()
+                val resultJson = module.callAttr("download_file", url, destPath, forceFilename).toString()
                 val result = JSONObject(resultJson)
-                result.getString("status") == "success"
+                val success = result.getString("status") == "success"
+                
+                if (success) {
+                    // Extract ID from handle if possible for notification
+                    val handleId = if (url.contains("#")) url.split("#")[0] else url
+                    CacheManager.notifyFileReady(handleId)
+                }
+                
+                success
             } catch (e: Exception) {
                 Log.e("MegaManager", "downloadFile failed", e)
                 false

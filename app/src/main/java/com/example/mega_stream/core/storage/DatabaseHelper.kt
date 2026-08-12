@@ -10,6 +10,37 @@ data class Folder(val id: Int, val name: String, val url: String)
 
 class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
+    companion object {
+        private const val DATABASE_NAME = "mega_stream_v30.db" // NEW VERSION to clean all old structures
+        private const val DATABASE_VERSION = 1
+        private const val TABLE_FOLDERS = "folders"
+        private const val COLUMN_ID = "id"
+        private const val COLUMN_NAME = "name"
+        private const val COLUMN_URL = "mega_url"
+        private const val TABLE_SETTINGS = "settings"
+        private const val COLUMN_SETTING_KEY = "setting_key"
+        private const val COLUMN_SETTING_VAL = "setting_value"
+        private const val TAG = "PIX_DB"
+
+        private const val CREATE_TABLE_FOLDERS = "CREATE TABLE $TABLE_FOLDERS (" +
+                "$COLUMN_ID INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "$COLUMN_NAME TEXT UNIQUE," +
+                "$COLUMN_URL TEXT)"
+
+        private const val CREATE_TABLE_SETTINGS = "CREATE TABLE $TABLE_SETTINGS (" +
+                "$COLUMN_SETTING_KEY TEXT PRIMARY KEY," +
+                "$COLUMN_SETTING_VAL TEXT)"
+
+        @Volatile
+        private var instance: DatabaseHelper? = null
+
+        fun getInstance(context: Context): DatabaseHelper {
+            return instance ?: synchronized(this) {
+                instance ?: DatabaseHelper(context.applicationContext).also { instance = it }
+            }
+        }
+    }
+
     override fun onConfigure(db: SQLiteDatabase) {
         super.onConfigure(db)
         db.enableWriteAheadLogging()
@@ -17,13 +48,13 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
     }
 
     override fun onCreate(db: SQLiteDatabase) {
-        Log.d("DatabaseHelper", "Creating tables...")
+        Log.i(TAG, "Creating fresh database v30 tables...")
         db.execSQL(CREATE_TABLE_FOLDERS)
         db.execSQL(CREATE_TABLE_SETTINGS)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        Log.d("DatabaseHelper", "Upgrading DB from $oldVersion to $newVersion")
+        Log.i(TAG, "Upgrading DB from $oldVersion to $newVersion")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_FOLDERS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_SETTINGS")
         onCreate(db)
@@ -44,36 +75,45 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
                 } while (cursor.moveToNext())
             }
         } catch (e: Exception) {
-            Log.e("DatabaseHelper", "Error reading folders", e)
+            Log.e(TAG, "[ERROR] getAllFolders failed", e)
         } finally {
             cursor.close()
         }
-        Log.d("DatabaseHelper", "Retrieved ${folders.size} folders from DB")
         return folders
     }
 
+    /**
+     * ADDITIVE SYNC with Detailed Verification
+     */
     fun mergeFolders(newFolders: List<Pair<String, String>>) {
         val db = this.writableDatabase
-        Log.d("DatabaseHelper", "Starting merge of ${newFolders.size} folders")
+        Log.i(TAG, "[DB_MERGE_START] Processing ${newFolders.size} potential folders...")
+        
         db.beginTransaction()
         try {
-            // Option 1: Strictly match the remote list (Clear and Refill)
-            // This is safer if you want the TV to EXACTLY match your latest JSON file.
-            db.delete(TABLE_FOLDERS, null, null)
-            Log.d("DatabaseHelper", "Existing folders cleared for fresh sync.")
-
             val values = ContentValues()
+            var inserted = 0
+            var updated = 0
+            
             for (folder in newFolders) {
                 values.clear()
                 values.put(COLUMN_NAME, folder.first)
                 values.put(COLUMN_URL, folder.second)
-                val id = db.insert(TABLE_FOLDERS, null, values)
-                Log.d("DatabaseHelper", "Inserted folder ${folder.first} with ID $id")
+                
+                // Using REPLACE: If Name exists, it updates URL. If not, it inserts.
+                val id = db.insertWithOnConflict(TABLE_FOLDERS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+                
+                if (id != -1L) {
+                    Log.d(TAG, "[DB_SUCCESS] Folder '${folder.first}' -> ID: $id")
+                    inserted++
+                } else {
+                    Log.e(TAG, "[DB_FAILURE] Folder '${folder.first}' could not be inserted.")
+                }
             }
             db.setTransactionSuccessful()
-            Log.d("DatabaseHelper", "Transaction successful. Merge complete.")
+            Log.i(TAG, "[DB_MERGE_END] Done. Inserted/Updated: $inserted folders.")
         } catch (e: Exception) {
-            Log.e("DatabaseHelper", "Merge failed", e)
+            Log.e(TAG, "[CRITICAL] Transaction failed: ${e.message}", e)
         } finally {
             db.endTransaction()
         }
@@ -85,8 +125,8 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
             put(COLUMN_SETTING_KEY, key)
             put(COLUMN_SETTING_VAL, value)
         }
-        val affected = db.replace(TABLE_SETTINGS, null, values)
-        Log.d("DatabaseHelper", "Saved setting $key=$value (rows affected: $affected)")
+        db.replace(TABLE_SETTINGS, null, values)
+        Log.i(TAG, "[SETTING_SAVE] $key = $value")
     }
 
     fun getSetting(key: String, defaultValue: String): String {
@@ -119,37 +159,6 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
         val db = this.writableDatabase
         db.delete(TABLE_FOLDERS, null, null)
         db.delete(TABLE_SETTINGS, null, null)
-        Log.d("DatabaseHelper", "All data reset.")
-    }
-
-    companion object {
-        private const val DATABASE_NAME = "mega_stream_v21.db" // Incremented to v21 to force refresh
-        private const val DATABASE_VERSION = 1
-        private const val TABLE_FOLDERS = "folders"
-        private const val COLUMN_ID = "id"
-        private const val COLUMN_NAME = "name"
-        private const val COLUMN_URL = "mega_url"
-        private const val TABLE_SETTINGS = "settings"
-        private const val COLUMN_SETTING_KEY = "setting_key"
-        private const val COLUMN_SETTING_VAL = "setting_value"
-
-        private const val CREATE_TABLE_FOLDERS = "CREATE TABLE $TABLE_FOLDERS (" +
-                "$COLUMN_ID INTEGER PRIMARY KEY AUTOINCREMENT," +
-                "$COLUMN_NAME TEXT," +
-                "$COLUMN_URL TEXT," +
-                "UNIQUE($COLUMN_NAME, $COLUMN_URL))"
-
-        private const val CREATE_TABLE_SETTINGS = "CREATE TABLE $TABLE_SETTINGS (" +
-                "$COLUMN_SETTING_KEY TEXT PRIMARY KEY," +
-                "$COLUMN_SETTING_VAL TEXT)"
-
-        @Volatile
-        private var instance: DatabaseHelper? = null
-
-        fun getInstance(context: Context): DatabaseHelper {
-            return instance ?: synchronized(this) {
-                instance ?: DatabaseHelper(context.applicationContext).also { instance = it }
-            }
-        }
+        Log.i(TAG, "[DB_RESET] Database wiped clean.")
     }
 }

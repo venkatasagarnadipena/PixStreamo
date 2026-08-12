@@ -2,6 +2,7 @@ import json
 import sys
 import base64
 import requests
+import os
 from Crypto.Cipher import AES
 
 # --- Chaquopy Environment Patch ---
@@ -29,7 +30,7 @@ class MegaManager:
         from mega import Mega
         self.mega = Mega()
         self.current_folder_id = None
-        self.session = requests.Session() # REUSE SESSION FOR SPEED
+        self.session = requests.Session() 
 
     def decrypt_attr(self, attr_data, key):
         try:
@@ -77,16 +78,17 @@ class MegaManager:
             return {"status": "success", "nodes": node_list}
         except: return {"status": "error"}
 
-    def download_file(self, id_key, dest_path):
+    def download_file(self, id_key, dest_path, force_filename=None):
         try:
-            import os
-            h = id_key.split("#")[0]
+            if not os.path.exists(dest_path):
+                os.makedirs(dest_path, exist_ok=True)
 
             if "mega.nz/file/" in id_key:
-                fn = "config.json" if "AhQR3AxC" in id_key else None
-                self.mega.download_url(id_key, dest_path=dest_path, dest_filename=fn)
+                # FIX: Use explicit filename if provided, otherwise let Mega library decide
+                self.mega.download_url(id_key, dest_path=dest_path, dest_filename=force_filename)
                 return {"status": "success"}
 
+            # Standard individual file download logic
             h, k_b64 = id_key.split("#")
             node_key = base64_url_decode(k_b64)
             
@@ -111,9 +113,9 @@ class MegaManager:
             r = self.session.get(file_url, stream=True, timeout=20)
             r.raise_for_status()
             
-            out_file = os.path.join(dest_path, f"dl_{h}.jpg")
+            out_file = os.path.join(dest_path, force_filename if force_filename else f"dl_{h}.jpg")
             with open(out_file, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=64*1024): # SMALLER CHUNKS FOR 1GB RAM
+                for chunk in r.iter_content(chunk_size=64*1024):
                     if chunk:
                         f.write(decryptor.decrypt(chunk))
             
@@ -122,4 +124,4 @@ class MegaManager:
 
 manager = MegaManager()
 def list_shared_folder(u): return json.dumps(manager.list_shared_folder(u))
-def download_file(u, d): return json.dumps(manager.download_file(u, d))
+def download_file(u, d, f=None): return json.dumps(manager.download_file(u, d, force_filename=f))

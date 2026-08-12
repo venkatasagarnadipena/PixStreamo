@@ -1,55 +1,56 @@
 package com.example.mega_stream.ui.screens
 
-import android.graphics.Bitmap
 import android.util.Log
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.*
 import com.example.mega_stream.core.network.LocalWebServer
 import com.example.mega_stream.core.network.QrGenerator
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.example.mega_stream.ui.components.QrCodeView
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun SyncScreen(onSyncComplete: () -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
-    var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    val scope = rememberCoroutineScope()
     var ipAddress by remember { mutableStateOf<String?>(null) }
-    
-    // Use applicationContext for the server to avoid Activity lifecycle issues
-    val webServer = remember { LocalWebServer(context.applicationContext) }
+    var qrBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    val server = remember { LocalWebServer(context) }
+    var isSuccess by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         Log.d("SyncScreen", "Entering Sync Screen, starting server")
-        val ip = webServer.getLocalIpAddress()
-        ipAddress = ip
-        if (ip != null) {
-            val portalUrl = "http://$ip:8888"
-            qrBitmap = withContext(Dispatchers.Default) {
-                QrGenerator.generate(portalUrl)
-            }
-            
-            webServer.start {
-                onSyncComplete()
+        ipAddress = server.getLocalIpAddress()
+        
+        ipAddress?.let {
+            val url = "http://$it:8888"
+            qrBitmap = QrGenerator.generateQrCode(url, 400)
+        }
+
+        server.start { receivedUrl ->
+            // This is called on Main thread from LocalWebServer
+            Log.d("SyncScreen", "Sync signal received: $receivedUrl")
+            isSuccess = true
+            scope.launch {
+                delay(2000) // Show success state for 2 seconds
+                onSyncComplete() // Navigate away
             }
         }
     }
 
-    // MANDATORY: Stop the server when leaving the screen
+    // Ensure server stops when leaving screen
     DisposableEffect(Unit) {
         onDispose {
             Log.d("SyncScreen", "Leaving Sync Screen, stopping server")
-            webServer.stop()
+            server.stop()
         }
     }
 
@@ -59,50 +60,39 @@ fun SyncScreen(onSyncComplete: () -> Unit, onBack: () -> Unit) {
             .background(Color(0xFF0A0A0A)),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "Sync with Phone",
-                style = MaterialTheme.typography.displaySmall,
-                color = Color.White
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Scan the QR code to paste your Mega URL from your phone",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray
-            )
+        if (isSuccess) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(text = "✅ URL Received!", style = MaterialTheme.typography.displayMedium, color = Color.White)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(text = "Updating your library...", style = MaterialTheme.typography.bodyLarge, color = Color.Gray)
+            }
+        } else {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
+                Text(text = "Local Web Portal", style = MaterialTheme.typography.displayMedium, color = Color.White)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Scan this QR with your phone to paste Mega URLs directly to your TV.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(horizontal = 64.dp)
+                )
 
-            Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(48.dp))
 
-            if (qrBitmap != null) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.size(300.dp).background(Color.White, RoundedCornerShape(16.dp))
-                ) {
-                    Image(
-                        bitmap = qrBitmap!!.asImageBitmap(),
-                        contentDescription = "Sync QR Code",
-                        modifier = Modifier.fillMaxSize().padding(16.dp)
-                    )
-                }
-            } else {
-                Box(modifier = Modifier.size(300.dp), contentAlignment = Alignment.Center) {
+                qrBitmap?.let {
+                    QrCodeView(bitmap = it)
+                } ?: run {
                     androidx.compose.material3.CircularProgressIndicator(color = Color.White)
                 }
-            }
 
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            Text(
-                text = if (ipAddress != null) "TV IP: $ipAddress" else "Detecting network...",
-                color = Color.DarkGray,
-                style = MaterialTheme.typography.labelSmall
-            )
-            
-            Spacer(modifier = Modifier.height(48.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-            Button(onClick = onBack) {
-                Text("Cancel & Go Back")
+                ipAddress?.let {
+                    Text(text = "Or visit in phone browser: http://$it:8888", color = Color.White.copy(alpha = 0.6f))
+                }
+                
+                // Redundant "Back to Home" button removed per user request.
+                // User can use the standard remote BACK button to exit.
             }
         }
     }

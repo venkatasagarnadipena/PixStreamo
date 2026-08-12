@@ -20,7 +20,8 @@ import com.example.mega_stream.ui.components.HeaderButton
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.window.Dialog
+import com.example.mega_stream.core.engine.CacheManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -30,45 +31,117 @@ fun HomeScreen(
     onFolderSelected: (Folder) -> Unit,
     onSettingsSelected: () -> Unit,
     onSyncSelected: () -> Unit,
-    onCompleteReset: () -> Unit
+    onCompleteReset: () -> Unit 
 ) {
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
     var folders by remember { mutableStateOf(emptyList<Folder>()) }
     val focusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
-    var isAutoSyncing by remember { mutableStateOf(false) }
+    
+    var isSyncingFolders by remember { mutableStateOf(false) }
+    var showResetDialog by remember { mutableStateOf(false) }
 
     fun refreshFolders() {
-        folders = dbHelper.getAllFolders()
-        Log.d("HomeScreen", "Refreshed folders from DB: ${folders.size}")
+        val latestFolders = dbHelper.getAllFolders()
+        folders = latestFolders
+        Log.d("HomeScreen", "REFRESH: Found ${latestFolders.size} folders.")
     }
 
     LaunchedEffect(Unit) {
         refreshFolders()
-        // If DB is empty, or if we want to force a refresh on every entry to pick up new folders
-        // We'll stick to auto-sync on empty for now to save performance, 
-        // but user can manual sync anytime.
-        if (folders.isEmpty()) {
-            isAutoSyncing = true
-            scope.launch {
-                Log.d("HomeScreen", "Starting automatic sync...")
-                ConfigFetcher(context).fetchAndSync()
-                refreshFolders()
-                isAutoSyncing = false
+        isSyncingFolders = true 
+        scope.launch {
+            ConfigFetcher(context).fetchAndSync()
+            refreshFolders()
+            isSyncingFolders = false
+            if (folders.isNotEmpty()) {
+                delay(500)
+                try { focusRequester.requestFocus() } catch (e: Exception) {}
             }
         }
-        
-        delay(1000)
-        if (folders.isNotEmpty()) {
-            try { focusRequester.requestFocus() } catch (e: Exception) {}
+    }
+
+    // POLISHED RESET DIALOG
+    if (showResetDialog) {
+        Dialog(onDismissRequest = { showResetDialog = false }) {
+            // Clean container without redundant full-screen Box
+            Column(
+                modifier = Modifier
+                    .width(440.dp)
+                    .background(Color(0xFF1A1A1A), MaterialTheme.shapes.medium)
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Reset Library?", 
+                    style = MaterialTheme.typography.headlineMedium, 
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "This will permanently remove all your folders and cached images. This action cannot be undone.", 
+                    style = MaterialTheme.typography.bodyMedium, 
+                    color = Color.LightGray,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(32.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // DELETE BUTTON - Centered text and high contrast
+                    Button(
+                        onClick = {
+                            dbHelper.resetAllData()
+                            CacheManager.deleteAllCache(context)
+                            folders = emptyList()
+                            showResetDialog = false
+                        },
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        colors = ButtonDefaults.colors(
+                            containerColor = Color.Red, 
+                            contentColor = Color.White,
+                            focusedContainerColor = Color.White,
+                            focusedContentColor = Color.Red
+                        )
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "Delete",
+                                style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                    
+                    // CANCEL BUTTON - Centered text and secondary style
+                    OutlinedButton(
+                        onClick = { showResetDialog = false },
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        colors = ButtonDefaults.colors(
+                            containerColor = Color.Transparent,
+                            contentColor = Color.White,
+                            focusedContainerColor = Color.White,
+                            focusedContentColor = Color.Black
+                        )
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "Cancel",
+                                style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF0A0A0A))
+        modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A))
     ) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 32.dp)) {
             Row(
@@ -76,29 +149,29 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "Your Folders", style = MaterialTheme.typography.displayMedium, color = Color.White)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "Your Folders", style = MaterialTheme.typography.displayMedium, color = Color.White)
+                    
+                    if (isSyncingFolders) {
+                        Spacer(modifier = Modifier.width(24.dp))
+                        androidx.compose.material3.CircularProgressIndicator(
+                            color = Color.White, modifier = Modifier.size(24.dp), strokeWidth = 3.dp
+                        )
+                    }
+                }
                 
                 Row(
                     modifier = Modifier.wrapContentWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    HeaderButton(
-                        text = "Sync",
-                        iconRes = R.drawable.ic_sync,
-                        onClick = onSyncSelected
-                    )
-
-                    HeaderButton(
-                        text = "Setup",
-                        iconRes = R.drawable.ic_setting,
-                        onClick = onSettingsSelected
-                    )
+                    HeaderButton(text = "Sync", iconRes = R.drawable.ic_sync, onClick = onSyncSelected)
+                    HeaderButton(text = "Setup", iconRes = R.drawable.ic_setting, onClick = onSettingsSelected)
                     
                     HeaderButton(
-                        text = "Reset",
-                        iconRes = R.drawable.ic_reset,
-                        onClick = onCompleteReset
+                        text = "Reset", 
+                        iconRes = R.drawable.ic_reset, 
+                        onClick = { showResetDialog = true }
                     )
                 }
             }
@@ -108,12 +181,12 @@ fun HomeScreen(
             if (folders.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        if (isAutoSyncing) {
+                        if (isSyncingFolders) {
                             androidx.compose.material3.CircularProgressIndicator(color = Color.White)
                             Spacer(modifier = Modifier.height(16.dp))
-                            Text(text = "Fetching folders from Mega...", color = Color.Gray)
+                            Text(text = "Populating folders from Mega...", color = Color.Gray)
                         } else {
-                            Text(text = "No folders found. Check your JSON link or Sync.", color = Color.Gray)
+                            Text(text = "Your library is empty. Use 'Sync' to import folders.", color = Color.Gray)
                         }
                     }
                 }

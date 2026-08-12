@@ -26,6 +26,9 @@ import com.example.mega_stream.core.engine.MegaManager
 import com.example.mega_stream.core.storage.DatabaseHelper
 import com.example.mega_stream.ui.screens.*
 import com.example.mega_stream.ui.theme.Mega_streamTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -39,7 +42,10 @@ class MainActivity : ComponentActivity() {
         window.decorView.isFocusableInTouchMode = true
         window.decorView.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
 
-        MegaManager.init(applicationContext)
+        // PERFORMANCE FIX: Init MegaManager in a background thread to prevent blocking Main/UI thread
+        CoroutineScope(Dispatchers.IO).launch {
+            MegaManager.init(applicationContext)
+        }
         
         setContent {
             Mega_streamTheme {

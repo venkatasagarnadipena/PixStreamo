@@ -9,7 +9,7 @@ import kotlinx.coroutines.sync.withLock
 import java.io.File
 
 object StreamingWorker {
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val engineMutex = Mutex()
     private var engineJob: Job? = null
 
@@ -77,6 +77,7 @@ object StreamingWorker {
                 val windowEnd = (windowStart + WINDOW_SIZE).coerceAtMost(items.size - 1)
                 val windowRange = windowStart..windowEnd
 
+                // Sequential window fetching but with priority to the current item
                 for (i in windowRange) {
                     if (!isActive) break
                     if (i >= items.size) break
@@ -89,17 +90,16 @@ object StreamingWorker {
                         _isWindowReady.value = false
                         _statusLabel.value = "Downloading ${i + 1}/${items.size}..."
                         
-                        val success = withContext(Dispatchers.IO) {
-                            MegaManager.downloadFile(item.handle, currentCacheDir.absolutePath)
-                        }
+                        // Execute in background
+                        val success = MegaManager.downloadFile(item.handle, currentCacheDir.absolutePath)
                         
                         if (success && file.exists()) {
                             CacheManager.notifyFileReady(handleId)
                         }
-                        yield() 
                     }
                     
                     if (_currentIndex.value != currentPos) break
+                    yield()
                 }
 
                 if (_currentIndex.value == currentPos) {
@@ -114,6 +114,10 @@ object StreamingWorker {
                     }
                     _isWindowReady.value = isFullyReady
                 }
+                
+                if (_isWindowReady.value) {
+                    _statusLabel.value = "Ready at ${currentPos + 1}"
+                }
 
                 if (Math.abs(currentPos - lastPrunedIndex) >= 5) {
                     val keepHandles = windowRange.filter { it < items.size }.map { items[it].handle }.toSet()
@@ -122,9 +126,6 @@ object StreamingWorker {
                 }
 
                 if (_isSlideshowActive.value) {
-                    val statusText = if (_statusLabel.value == "END_OF_SHOW") "END_OF_SHOW" else "Slideshow Active: ${currentPos + 1}"
-                    _statusLabel.value = statusText
-                    
                     delay(8000) 
                     engineMutex.withLock {
                         if (_isSlideshowActive.value && currentPos == _currentIndex.value) {
@@ -132,11 +133,8 @@ object StreamingWorker {
                         }
                     }
                 } else {
-                    if (_statusLabel.value != "END_OF_SHOW") {
-                        _statusLabel.value = "Ready at ${currentPos + 1}"
-                    }
                     delay(500)
-                    while (isActive && _currentIndex.value == currentPos && !_isSlideshowActive.value && _statusLabel.value != "END_OF_SHOW") {
+                    while (isActive && _currentIndex.value == currentPos && !_isSlideshowActive.value) {
                         delay(200)
                     }
                 }

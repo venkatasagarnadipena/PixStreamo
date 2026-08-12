@@ -41,13 +41,18 @@ fun HomeScreen(
 
     fun refreshFolders() {
         folders = dbHelper.getAllFolders()
+        Log.d("HomeScreen", "Refreshed folders from DB: ${folders.size}")
     }
 
     LaunchedEffect(Unit) {
         refreshFolders()
+        // If DB is empty, or if we want to force a refresh on every entry to pick up new folders
+        // We'll stick to auto-sync on empty for now to save performance, 
+        // but user can manual sync anytime.
         if (folders.isEmpty()) {
             isAutoSyncing = true
             scope.launch {
+                Log.d("HomeScreen", "Starting automatic sync...")
                 ConfigFetcher(context).fetchAndSync()
                 refreshFolders()
                 isAutoSyncing = false

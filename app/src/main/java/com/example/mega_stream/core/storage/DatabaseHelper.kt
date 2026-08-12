@@ -17,11 +17,13 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
     }
 
     override fun onCreate(db: SQLiteDatabase) {
+        Log.d("DatabaseHelper", "Creating tables...")
         db.execSQL(CREATE_TABLE_FOLDERS)
         db.execSQL(CREATE_TABLE_SETTINGS)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        Log.d("DatabaseHelper", "Upgrading DB from $oldVersion to $newVersion")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_FOLDERS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_SETTINGS")
         onCreate(db)
@@ -30,7 +32,7 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
     fun getAllFolders(): List<Folder> {
         val folders = mutableListOf<Folder>()
         val db = this.readableDatabase
-        val cursor = db.rawQuery("SELECT * FROM $TABLE_FOLDERS", null)
+        val cursor = db.rawQuery("SELECT * FROM $TABLE_FOLDERS ORDER BY $COLUMN_ID ASC", null)
         try {
             if (cursor.moveToFirst()) {
                 do {
@@ -46,21 +48,32 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
         } finally {
             cursor.close()
         }
+        Log.d("DatabaseHelper", "Retrieved ${folders.size} folders from DB")
         return folders
     }
 
     fun mergeFolders(newFolders: List<Pair<String, String>>) {
         val db = this.writableDatabase
+        Log.d("DatabaseHelper", "Starting merge of ${newFolders.size} folders")
         db.beginTransaction()
         try {
+            // Option 1: Strictly match the remote list (Clear and Refill)
+            // This is safer if you want the TV to EXACTLY match your latest JSON file.
+            db.delete(TABLE_FOLDERS, null, null)
+            Log.d("DatabaseHelper", "Existing folders cleared for fresh sync.")
+
             val values = ContentValues()
             for (folder in newFolders) {
                 values.clear()
                 values.put(COLUMN_NAME, folder.first)
                 values.put(COLUMN_URL, folder.second)
-                db.insertWithOnConflict(TABLE_FOLDERS, null, values, SQLiteDatabase.CONFLICT_IGNORE)
+                val id = db.insert(TABLE_FOLDERS, null, values)
+                Log.d("DatabaseHelper", "Inserted folder ${folder.first} with ID $id")
             }
             db.setTransactionSuccessful()
+            Log.d("DatabaseHelper", "Transaction successful. Merge complete.")
+        } catch (e: Exception) {
+            Log.e("DatabaseHelper", "Merge failed", e)
         } finally {
             db.endTransaction()
         }
@@ -72,7 +85,8 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
             put(COLUMN_SETTING_KEY, key)
             put(COLUMN_SETTING_VAL, value)
         }
-        db.replace(TABLE_SETTINGS, null, values)
+        val affected = db.replace(TABLE_SETTINGS, null, values)
+        Log.d("DatabaseHelper", "Saved setting $key=$value (rows affected: $affected)")
     }
 
     fun getSetting(key: String, defaultValue: String): String {
@@ -105,10 +119,11 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
         val db = this.writableDatabase
         db.delete(TABLE_FOLDERS, null, null)
         db.delete(TABLE_SETTINGS, null, null)
+        Log.d("DatabaseHelper", "All data reset.")
     }
 
     companion object {
-        private const val DATABASE_NAME = "mega_stream_final.db"
+        private const val DATABASE_NAME = "mega_stream_v21.db" // Incremented to v21 to force refresh
         private const val DATABASE_VERSION = 1
         private const val TABLE_FOLDERS = "folders"
         private const val COLUMN_ID = "id"

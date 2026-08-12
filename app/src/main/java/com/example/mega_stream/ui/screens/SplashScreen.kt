@@ -18,24 +18,42 @@ import kotlinx.coroutines.launch
 @Composable
 fun SplashScreen(onSyncComplete: () -> Unit) {
     val context = LocalContext.current
-    val progress = remember { Animatable(0f) }
+    
+    // UI-State driven progress (0f to 1f)
+    var progressValue by remember { mutableStateOf(0f) }
+    
+    // Explicit animation state
+    val animatedProgress by animateFloatAsState(
+        targetValue = progressValue,
+        animationSpec = tween(durationMillis = 1500, easing = LinearOutSlowInEasing),
+        label = "splash_progress"
+    )
     
     LaunchedEffect(Unit) {
-        // Parallel work: Sync data
-        launch {
-            ConfigFetcher(context).fetchAndSync()
+        // Start background sync immediately (Fire and forget, but update progress on finish)
+        val syncJob = launch {
+            try {
+                ConfigFetcher(context).fetchAndSync()
+            } catch (e: Exception) { /* sync failed but we move on */ }
+            progressValue = 1f
         }
 
-        // Dedicated animation launch to ensure it's not blocked
-        launch {
-            progress.animateTo(
-                targetValue = 1f,
-                animationSpec = tween(durationMillis = 3000, easing = LinearEasing)
-            )
-        }
+        // Sequential progress visualization
+        progressValue = 0.2f
+        delay(800)
+        progressValue = 0.5f
+        delay(1000)
+        progressValue = 0.8f
         
-        // Wait for minimum time
-        delay(3200) 
+        // HARD LIMIT: Maximum 4 seconds wait time to ensure app entry
+        delay(2200) 
+        
+        // Ensure we are at 100% before leaving
+        progressValue = 1f
+        
+        // Wait for animation to visually fill up before transition
+        delay(1600)
+
         onSyncComplete()
     }
 
@@ -52,19 +70,17 @@ fun SplashScreen(onSyncComplete: () -> Unit) {
             
             Spacer(modifier = Modifier.height(48.dp))
             
-            // Dynamic Progress Bar replacing static icon
+            // Modern Progress Bar
             Box(
                 modifier = Modifier
                     .width(300.dp)
                     .height(6.dp)
                     .background(Color.White.copy(alpha = 0.1f), MaterialTheme.shapes.small)
             ) {
-                // Ensure fillMaxWidth reads the animate value on every frame
-                val currentWidth = progress.value
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
-                        .fillMaxWidth(currentWidth)
+                        .fillMaxWidth(animatedProgress)
                         .background(Color.White, MaterialTheme.shapes.small)
                 )
             }
@@ -72,7 +88,7 @@ fun SplashScreen(onSyncComplete: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
             
             Text(
-                text = "Loading your experience...",
+                text = if (animatedProgress < 1f) "Optimizing your experience..." else "Ready!",
                 style = MaterialTheme.typography.labelMedium,
                 color = Color.Gray
             )

@@ -1,6 +1,7 @@
 package com.example.mega_stream
 
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -20,8 +21,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.MaterialTheme
-import com.example.mega_stream.core.engine.CacheManager
 import com.example.mega_stream.core.engine.MegaManager
 import com.example.mega_stream.core.storage.DatabaseHelper
 import com.example.mega_stream.ui.screens.*
@@ -34,15 +33,17 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
 class MainActivity : ComponentActivity() {
+    
+    // Removed PIX_INPUT diagnostic key monitor for production
+
     @OptIn(ExperimentalTvMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
         window.decorView.isFocusable = true
         window.decorView.isFocusableInTouchMode = true
-        window.decorView.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
-
-        // PERFORMANCE FIX: Init MegaManager in a background thread to prevent blocking Main/UI thread
+        
+        // Final Production Engine Init
         CoroutineScope(Dispatchers.IO).launch {
             MegaManager.init(applicationContext)
         }
@@ -62,7 +63,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        window.decorView.requestFocus()
+        window.decorView.post {
+            window.decorView.requestFocus()
+        }
     }
 }
 
@@ -78,10 +81,8 @@ fun AppNavigation() {
     NavHost(
         navController = navController, 
         startDestination = startDest,
-        enterTransition = { fadeIn(animationSpec = tween(500)) + scaleIn(initialScale = 0.95f, animationSpec = tween(500)) },
-        exitTransition = { fadeOut(animationSpec = tween(500)) },
-        popEnterTransition = { fadeIn(animationSpec = tween(500)) },
-        popExitTransition = { fadeOut(animationSpec = tween(500)) + scaleOut(targetScale = 0.95f, animationSpec = tween(500)) }
+        enterTransition = { fadeIn(animationSpec = tween(300)) },
+        exitTransition = { fadeOut(animationSpec = tween(300)) }
     ) {
         composable("welcome") { WelcomeScreen(onContinue = { navController.navigate("onboarding_menu") }) }
         
@@ -108,7 +109,7 @@ fun AppNavigation() {
         composable("sync_portal") {
             SyncScreen(
                 onSyncComplete = {
-                    navController.navigate("splash") { popUpTo("home") { inclusive = true } }
+                    navController.navigate("home") { popUpTo("home") { inclusive = true } }
                 },
                 onBack = { navController.popBackStack() }
             )
@@ -123,11 +124,7 @@ fun AppNavigation() {
                 },
                 onSettingsSelected = { navController.navigate("onboarding_menu") },
                 onSyncSelected = { navController.navigate("sync_portal") },
-                onCompleteReset = {
-                    dbHelper.resetAllData()
-                    CacheManager.deleteAllCache(context)
-                    navController.navigate("welcome") { popUpTo(0) { inclusive = true } }
-                }
+                onCompleteReset = {}
             )
         }
         

@@ -1,5 +1,6 @@
 package com.example.mega_stream.ui.screens
 
+import android.util.Log
 import android.view.KeyEvent
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -18,13 +19,14 @@ import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.mega_stream.R
 import com.example.mega_stream.core.engine.*
-import com.example.mega_stream.ui.components.DribbbleLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
@@ -54,13 +56,18 @@ fun PlayerScreen(
     val focusRequester = remember { FocusRequester() }
     val folderCacheDir = remember(folderUrl) { CacheManager.getFolderCacheDir(context, folderUrl) }
 
+    // CRITICAL: Robust End of Show detection
+    val isEndOfShow = statusLabel == "END_OF_SHOW"
+    
+    // Logic: Start screen only if slideshow is active and first 30 images not cached yet
+    val showIntro = isSlideshowActive && !isWindowReady && !isEndOfShow
+
     LaunchedEffect(folderUrl) {
         val result = withContext(Dispatchers.IO) {
             try { MegaManager.listSharedFolder(folderUrl) } catch (e: Exception) { null }
         }
         if (result != null) {
             mediaItems = result
-            StreamingWorker.setSlideshowActive(false)
             StreamingWorker.initFolder(context, folderUrl, result, initialIndex)
         }
     }
@@ -68,8 +75,10 @@ fun PlayerScreen(
     LaunchedEffect(currentIndex, mediaItems, statusLabel) {
         if (mediaItems.isEmpty()) return@LaunchedEffect
 
-        if (statusLabel == "END_OF_SHOW") {
-            delay(7000)
+        // If we reached the end, stay on the screen for 5 seconds then go home
+        if (isEndOfShow) {
+            Log.d("PlayerScreen", "END_OF_SHOW detected. Starting exit countdown.")
+            delay(5000)
             onHome()
             return@LaunchedEffect
         }
@@ -104,7 +113,7 @@ fun PlayerScreen(
             .focusRequester(focusRequester)
             .focusable()
             .onKeyEvent { keyEvent ->
-                if (statusLabel == "END_OF_SHOW") return@onKeyEvent true
+                if (isEndOfShow) return@onKeyEvent true
                 if (keyEvent.type == KeyEventType.KeyDown) {
                     when (keyEvent.nativeKeyEvent.keyCode) {
                         KeyEvent.KEYCODE_DPAD_LEFT -> { StreamingWorker.previous(); true }
@@ -120,50 +129,96 @@ fun PlayerScreen(
             },
         contentAlignment = Alignment.Center
     ) {
-        if (statusLabel == "END_OF_SHOW") {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = "End of Show",
-                    style = MaterialTheme.typography.displayMedium,
-                    color = Color.White
-                )
+        // --- 1. MAIN PLAYER (Base layer) ---
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            if (!isEndOfShow) {
+                Crossfade(
+                    targetState = currentFile,
+                    animationSpec = tween(durationMillis = 1000),
+                    label = "image_fade"
+                ) { targetFile ->
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        if (targetFile != null && !isWaitingForFile) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(targetFile)
+                                    .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                                    .diskCachePolicy(coil.request.CachePolicy.DISABLED)
+                                    .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
+                                    .allowHardware(true)
+                                    .build(),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit
+                            )
+                        } else if (isSlideshowActive && !showIntro) {
+                            androidx.compose.material3.CircularProgressIndicator(color = Color.White)
+                        }
+                    }
+                }
             }
-        } else if (isSlideshowActive && !isWindowReady) {
+        }
+
+        // --- 2. SLIDESHOW START SCREEN (Overlay) ---
+        AnimatedVisibility(
+            visible = showIntro,
+            enter = fadeIn(),
+            exit = fadeOut(animationSpec = tween(800))
+        ) {
             Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "Show will start soon",
+                        text = "Starting Slideshow",
                         style = MaterialTheme.typography.displayMedium,
-                        color = Color.White
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(48.dp))
-                    DribbbleLoader()
-                }
-            }
-        } else {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                if (isWaitingForFile || currentFile == null) {
-                    androidx.compose.material3.CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                } else {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(currentFile)
-                            .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
-                            .diskCachePolicy(coil.request.CachePolicy.DISABLED)
-                            .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
-                            .allowHardware(true)
-                            .crossfade(300)
-                            .build(),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit
+                    Spacer(modifier = Modifier.height(24.dp))
+                    androidx.compose.material3.CircularProgressIndicator(color = Color.White)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Buffering initial images...",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.Gray
                     )
                 }
             }
         }
 
+        // --- 3. SLIDESHOW END SCREEN (Top-most overlay) ---
         AnimatedVisibility(
-            visible = !isSlideshowActive && statusLabel != "END_OF_SHOW",
+            visible = isEndOfShow,
+            enter = fadeIn(animationSpec = tween(800)) + scaleIn(initialScale = 0.9f),
+            exit = fadeOut()
+        ) {
+            Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_reset),
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = Color.Yellow
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text(
+                        text = "End of Show",
+                        style = MaterialTheme.typography.displayMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Returning to Home Screen...",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.Gray
+                    )
+                }
+            }
+        }
+
+        // --- 4. CONTROLS OVERLAY ---
+        AnimatedVisibility(
+            visible = !isSlideshowActive && !isEndOfShow,
             enter = slideInVertically(initialOffsetY = { it / 2 }, animationSpec = tween(600)),
             exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(600)),
             modifier = Modifier.align(Alignment.BottomCenter)
@@ -197,7 +252,8 @@ fun PlayerScreen(
                             )
                             Text(
                                 text = "START SLIDESHOW",
-                                style = MaterialTheme.typography.labelLarge
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -205,46 +261,16 @@ fun PlayerScreen(
                     Text(
                         text = "${currentIndex + 1} / ${mediaItems.size}",
                         color = Color.White,
-                        style = MaterialTheme.typography.labelLarge
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Medium
                     )
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = "←",
-                                color = Color.White.copy(alpha = 0.7f),
-                                style = MaterialTheme.typography.labelMedium,
-                                modifier = Modifier.offset(y = (-2).dp)
-                            )
-                            Text(
-                                text = "PREV",
-                                color = Color.White.copy(alpha = 0.7f),
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        }
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = "NEXT",
-                                color = Color.White.copy(alpha = 0.7f),
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                            Text(
-                                text = "→",
-                                color = Color.White.copy(alpha = 0.7f),
-                                style = MaterialTheme.typography.labelMedium,
-                                modifier = Modifier.offset(y = (-2).dp)
-                            )
-                        }
+                        Text(text = "← PREV", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                        Text(text = "NEXT →", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
                     }
                 }
             }

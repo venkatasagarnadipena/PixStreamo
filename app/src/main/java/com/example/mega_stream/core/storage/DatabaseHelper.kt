@@ -4,7 +4,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.content.ContentValues
-import android.util.Log
+import com.example.mega_stream.core.network.PixLog
 
 data class Folder(val id: Int, val name: String, val url: String)
 
@@ -17,13 +17,11 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
     }
 
     override fun onCreate(db: SQLiteDatabase) {
-        Log.d("DatabaseHelper", "Creating tables...")
         db.execSQL(CREATE_TABLE_FOLDERS)
         db.execSQL(CREATE_TABLE_SETTINGS)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        Log.d("DatabaseHelper", "Upgrading DB from $oldVersion to $newVersion")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_FOLDERS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_SETTINGS")
         onCreate(db)
@@ -44,36 +42,27 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
                 } while (cursor.moveToNext())
             }
         } catch (e: Exception) {
-            Log.e("DatabaseHelper", "Error reading folders", e)
+            // Silenced for production
         } finally {
             cursor.close()
         }
-        Log.d("DatabaseHelper", "Retrieved ${folders.size} folders from DB")
         return folders
     }
 
     fun mergeFolders(newFolders: List<Pair<String, String>>) {
         val db = this.writableDatabase
-        Log.d("DatabaseHelper", "Starting merge of ${newFolders.size} folders")
         db.beginTransaction()
         try {
-            // Option 1: Strictly match the remote list (Clear and Refill)
-            // This is safer if you want the TV to EXACTLY match your latest JSON file.
-            db.delete(TABLE_FOLDERS, null, null)
-            Log.d("DatabaseHelper", "Existing folders cleared for fresh sync.")
-
             val values = ContentValues()
             for (folder in newFolders) {
                 values.clear()
                 values.put(COLUMN_NAME, folder.first)
                 values.put(COLUMN_URL, folder.second)
-                val id = db.insert(TABLE_FOLDERS, null, values)
-                Log.d("DatabaseHelper", "Inserted folder ${folder.first} with ID $id")
+                db.insertWithOnConflict(TABLE_FOLDERS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
             }
             db.setTransactionSuccessful()
-            Log.d("DatabaseHelper", "Transaction successful. Merge complete.")
         } catch (e: Exception) {
-            Log.e("DatabaseHelper", "Merge failed", e)
+            // Silenced for production
         } finally {
             db.endTransaction()
         }
@@ -85,8 +74,7 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
             put(COLUMN_SETTING_KEY, key)
             put(COLUMN_SETTING_VAL, value)
         }
-        val affected = db.replace(TABLE_SETTINGS, null, values)
-        Log.d("DatabaseHelper", "Saved setting $key=$value (rows affected: $affected)")
+        db.replace(TABLE_SETTINGS, null, values)
     }
 
     fun getSetting(key: String, defaultValue: String): String {
@@ -119,11 +107,11 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
         val db = this.writableDatabase
         db.delete(TABLE_FOLDERS, null, null)
         db.delete(TABLE_SETTINGS, null, null)
-        Log.d("DatabaseHelper", "All data reset.")
     }
 
     companion object {
-        private const val DATABASE_NAME = "mega_stream_v21.db" // Incremented to v21 to force refresh
+        // FINAL PRODUCTION DB NAME: Ensures no legacy data from dev-cycle is loaded
+        private const val DATABASE_NAME = "pixstreamo_release.db"
         private const val DATABASE_VERSION = 1
         private const val TABLE_FOLDERS = "folders"
         private const val COLUMN_ID = "id"
@@ -135,9 +123,8 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
 
         private const val CREATE_TABLE_FOLDERS = "CREATE TABLE $TABLE_FOLDERS (" +
                 "$COLUMN_ID INTEGER PRIMARY KEY AUTOINCREMENT," +
-                "$COLUMN_NAME TEXT," +
-                "$COLUMN_URL TEXT," +
-                "UNIQUE($COLUMN_NAME, $COLUMN_URL))"
+                "$COLUMN_NAME TEXT UNIQUE," +
+                "$COLUMN_URL TEXT)"
 
         private const val CREATE_TABLE_SETTINGS = "CREATE TABLE $TABLE_SETTINGS (" +
                 "$COLUMN_SETTING_KEY TEXT PRIMARY KEY," +

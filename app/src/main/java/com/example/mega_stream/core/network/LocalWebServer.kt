@@ -5,9 +5,9 @@ import android.util.Log
 import com.example.mega_stream.core.storage.DatabaseHelper
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.cio.*
 import io.ktor.server.engine.*
 import io.ktor.server.html.*
-import io.ktor.server.netty.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -15,14 +15,18 @@ import kotlinx.coroutines.*
 import kotlinx.html.*
 import java.net.NetworkInterface
 
+/**
+ * High-performance Web Server using the CIO engine.
+ * CIO is significantly more stable on Android than Netty for start/stop cycles.
+ */
 class LocalWebServer(private val appContext: Context) {
-    private var server: NettyApplicationEngine? = null
+    private var server: ApplicationEngine? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     fun start(onUrlReceived: (String) -> Unit) {
         if (server != null) return
 
-        server = embeddedServer(Netty, port = 8888, host = "0.0.0.0") {
+        server = embeddedServer(CIO, port = 8888, host = "0.0.0.0") {
             routing {
                 get("/") {
                     call.respondHtml {
@@ -62,15 +66,18 @@ class LocalWebServer(private val appContext: Context) {
                     try {
                         val params = call.receiveParameters()
                         val receivedUrl = params["url"] ?: ""
-                        Log.d("LocalWebServer", "Received URL: $receivedUrl")
+                        Log.i("LocalWebServer", "URL Received via Web Portal: $receivedUrl")
                         
                         if (receivedUrl.startsWith("https://mega.nz/")) {
                             val dbHelper = DatabaseHelper.getInstance(appContext)
+                            
                             withContext(Dispatchers.IO) {
                                 dbHelper.saveSetting("config_url", receivedUrl.trim())
                             }
                             
-                            // CRITICAL: Switch to Main thread for the UI callback
+                            // Process folders in background immediately
+                            ConfigFetcher(appContext).startAsyncImport()
+                            
                             withContext(Dispatchers.Main) {
                                 onUrlReceived(receivedUrl.trim())
                             }
@@ -96,9 +103,9 @@ class LocalWebServer(private val appContext: Context) {
         scope.launch {
             try {
                 server?.start(wait = false)
-                Log.d("LocalWebServer", "Server started on port 8888")
+                Log.i("LocalWebServer", "CIO Server started on port 8888")
             } catch (e: Exception) {
-                Log.e("LocalWebServer", "Failed to start server", e)
+                Log.e("LocalWebServer", "Failed to start CIO server", e)
             }
         }
     }
@@ -108,7 +115,7 @@ class LocalWebServer(private val appContext: Context) {
             try {
                 server?.stop(200, 500)
                 server = null
-                Log.d("LocalWebServer", "Server stopped successfully")
+                Log.i("LocalWebServer", "Server stopped and port released.")
             } catch (e: Exception) {
                 Log.e("LocalWebServer", "Error stopping server", e)
             }

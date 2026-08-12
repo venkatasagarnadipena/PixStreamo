@@ -1,7 +1,7 @@
 package com.example.mega_stream.core.engine
 
 import android.content.Context
-import android.util.Log
+import com.example.mega_stream.core.network.PixLog
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
@@ -54,8 +54,6 @@ object StreamingWorker {
                 _currentIndex.value = initialIndex
                 _isWindowReady.value = false 
                 cacheDir = CacheManager.getFolderCacheDir(context, url)
-                
-                Log.d("STREAMING_WORKER", "Initializing Rolling Window for: $url at index $initialIndex")
                 startEngineLocked()
             }
         }
@@ -77,7 +75,6 @@ object StreamingWorker {
                 val windowEnd = (windowStart + WINDOW_SIZE).coerceAtMost(items.size - 1)
                 val windowRange = windowStart..windowEnd
 
-                // Sequential window fetching but with priority to the current item
                 for (i in windowRange) {
                     if (!isActive) break
                     if (i >= items.size) break
@@ -89,13 +86,7 @@ object StreamingWorker {
                     if (!file.exists() || file.length() < 1024) {
                         _isWindowReady.value = false
                         _statusLabel.value = "Downloading ${i + 1}/${items.size}..."
-                        
-                        // Execute in background
-                        val success = MegaManager.downloadFile(item.handle, currentCacheDir.absolutePath)
-                        
-                        if (success && file.exists()) {
-                            CacheManager.notifyFileReady(handleId)
-                        }
+                        MegaManager.downloadFile(item.handle, currentCacheDir.absolutePath)
                     }
                     
                     if (_currentIndex.value != currentPos) break
@@ -115,7 +106,7 @@ object StreamingWorker {
                     _isWindowReady.value = isFullyReady
                 }
                 
-                if (_isWindowReady.value) {
+                if (_isWindowReady.value && _statusLabel.value != "END_OF_SHOW") {
                     _statusLabel.value = "Ready at ${currentPos + 1}"
                 }
 
@@ -149,7 +140,6 @@ object StreamingWorker {
             if (next < mediaItems.size) {
                 _currentIndex.value = next
             } else {
-                _isSlideshowActive.value = false
                 _statusLabel.value = "END_OF_SHOW"
             }
         }
@@ -159,18 +149,16 @@ object StreamingWorker {
         if (_statusLabel.value == "END_OF_SHOW") {
             _statusLabel.value = "Resuming..."
             _currentIndex.value = 0
+            _isSlideshowActive.value = true
+        } else {
+            _isSlideshowActive.value = !_isSlideshowActive.value
         }
-        _isSlideshowActive.value = !_isSlideshowActive.value
     }
 
     fun jumpTo(index: Int, pause: Boolean) {
         if (mediaItems.isEmpty()) return
         val target = index.coerceIn(0, mediaItems.size - 1)
         
-        if (_statusLabel.value == "END_OF_SHOW") {
-            _statusLabel.value = "Ready"
-        }
-
         if (_currentIndex.value != target) {
             _currentIndex.value = target
             _isWindowReady.value = false 
@@ -180,18 +168,27 @@ object StreamingWorker {
 
     fun next() {
         _isSlideshowActive.value = false
-        advanceIndex()
+        if (_statusLabel.value == "END_OF_SHOW") {
+            _currentIndex.value = 0
+        } else {
+            advanceIndex()
+        }
     }
 
     fun previous() {
         _isSlideshowActive.value = false
-        if (_currentIndex.value > 0) _currentIndex.value--
-        else _currentIndex.value = mediaItems.size - 1
+        if (_statusLabel.value == "END_OF_SHOW") {
+            _currentIndex.value = mediaItems.size - 1
+        } else {
+            if (_currentIndex.value > 0) _currentIndex.value--
+            else _currentIndex.value = mediaItems.size - 1
+        }
     }
 
     private fun stopLocked() {
         engineJob?.cancel()
         activeFolderUrl = ""
         _statusLabel.value = "Stopped"
+        _isSlideshowActive.value = false
     }
 }

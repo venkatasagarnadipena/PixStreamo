@@ -11,6 +11,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.*
 import com.example.mega_stream.core.network.ConfigFetcher
+import com.example.mega_stream.core.storage.DatabaseHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -18,43 +19,38 @@ import kotlinx.coroutines.launch
 @Composable
 fun SplashScreen(onSyncComplete: () -> Unit) {
     val context = LocalContext.current
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
     
-    // UI-State driven progress (0f to 1f)
     var progressValue by remember { mutableStateOf(0f) }
     
-    // Explicit animation state
     val animatedProgress by animateFloatAsState(
         targetValue = progressValue,
-        animationSpec = tween(durationMillis = 1500, easing = LinearOutSlowInEasing),
+        animationSpec = tween(durationMillis = 1000, easing = LinearOutSlowInEasing),
         label = "splash_progress"
     )
     
     LaunchedEffect(Unit) {
-        // Start background sync immediately (Fire and forget, but update progress on finish)
-        val syncJob = launch {
-            try {
-                ConfigFetcher(context).fetchAndSync()
-            } catch (e: Exception) { /* sync failed but we move on */ }
+        val foldersExist = dbHelper.getAllFolders().isNotEmpty()
+        
+        if (foldersExist) {
+            // FAST START: Enter app immediately, update silently in background
             progressValue = 1f
+            ConfigFetcher(context).startAsyncImport() // Lifecycle-safe background sync
+            delay(1200)
+            onSyncComplete()
+        } else {
+            // FIRST RUN: Must wait for first import to finish
+            progressValue = 0.2f
+            delay(500)
+            progressValue = 0.5f
+            
+            // Block UI only for the first-ever data fetch
+            ConfigFetcher(context).fetchAndSync() 
+            
+            progressValue = 1f
+            delay(1000)
+            onSyncComplete()
         }
-
-        // Sequential progress visualization
-        progressValue = 0.2f
-        delay(800)
-        progressValue = 0.5f
-        delay(1000)
-        progressValue = 0.8f
-        
-        // HARD LIMIT: Maximum 4 seconds wait time to ensure app entry
-        delay(2200) 
-        
-        // Ensure we are at 100% before leaving
-        progressValue = 1f
-        
-        // Wait for animation to visually fill up before transition
-        delay(1600)
-
-        onSyncComplete()
     }
 
     Box(
@@ -70,7 +66,6 @@ fun SplashScreen(onSyncComplete: () -> Unit) {
             
             Spacer(modifier = Modifier.height(48.dp))
             
-            // Modern Progress Bar
             Box(
                 modifier = Modifier
                     .width(300.dp)
@@ -88,7 +83,7 @@ fun SplashScreen(onSyncComplete: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
             
             Text(
-                text = if (animatedProgress < 1f) "Optimizing your experience..." else "Ready!",
+                text = "Loading your library...",
                 style = MaterialTheme.typography.labelMedium,
                 color = Color.Gray
             )

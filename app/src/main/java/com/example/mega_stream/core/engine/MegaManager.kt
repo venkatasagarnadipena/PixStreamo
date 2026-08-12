@@ -1,9 +1,9 @@
 package com.example.mega_stream.core.engine
 
 import android.content.Context
-import android.util.Log
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
+import com.example.mega_stream.core.network.PixLog
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -21,9 +21,6 @@ object MegaManager {
     private var isInitialized = false
     private val mutex = Mutex()
 
-    /**
-     * Non-blocking init for fast startup.
-     */
     fun init(context: Context) {
         if (isInitialized) return
         try {
@@ -31,15 +28,11 @@ object MegaManager {
                 Python.start(AndroidPlatform(context))
             }
             isInitialized = true
-            Log.d("MegaManager", "Python Engine started successfully")
         } catch (e: Exception) {
-            Log.e("MegaManager", "Python Init Error", e)
+            PixLog.e("MegaManager", "Python Init Error", e)
         }
     }
 
-    /**
-     * List shared folders on a background thread with singleton access.
-     */
     suspend fun listSharedFolder(url: String): List<SharedMediaItem> = withContext(Dispatchers.IO) {
         mutex.withLock {
             try {
@@ -63,25 +56,28 @@ object MegaManager {
                 }
                 itemsList
             } catch (e: Exception) {
-                Log.e("MegaManager", "listSharedFolder failed", e)
+                PixLog.e("MegaManager", "List folder failed")
                 emptyList<SharedMediaItem>()
             }
         }
     }
 
-    /**
-     * Download files on a background thread with singleton access.
-     */
-    suspend fun downloadFile(url: String, destPath: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun downloadFile(url: String, destPath: String, forceFilename: String? = null): Boolean = withContext(Dispatchers.IO) {
         mutex.withLock {
             try {
                 val py = Python.getInstance()
                 val module = py.getModule("mega_manager")
-                val resultJson = module.callAttr("download_file", url, destPath).toString()
+                val resultJson = module.callAttr("download_file", url, destPath, forceFilename).toString()
                 val result = JSONObject(resultJson)
-                result.getString("status") == "success"
+                val success = result.getString("status") == "success"
+                
+                if (success) {
+                    val handleId = if (url.contains("#")) url.split("#")[0] else url
+                    CacheManager.notifyFileReady(handleId)
+                }
+                success
             } catch (e: Exception) {
-                Log.e("MegaManager", "downloadFile failed", e)
+                PixLog.e("MegaManager", "Download failed")
                 false
             }
         }

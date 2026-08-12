@@ -1,28 +1,24 @@
 package com.example.mega_stream.ui.screens
 
 import android.os.Environment
-import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
+import android.view.SoundEffectConstants
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
 import com.example.mega_stream.R
 import com.example.mega_stream.core.storage.DatabaseHelper
@@ -31,41 +27,40 @@ import java.io.File
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun WelcomeScreen(onContinue: () -> Unit) {
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
+    val view = LocalView.current
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF0A0A0A)),
+        modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A)),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "Welcome to PixStreamo",
-                style = MaterialTheme.typography.displayMedium,
-                color = Color.White
+                text = "PixStreamo",
+                style = MaterialTheme.typography.displayLarge,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "The ultimate media streaming experience for Android TV.",
-                style = MaterialTheme.typography.bodyLarge,
+                text = "Cinematic Image Streaming for Android TV",
+                style = MaterialTheme.typography.headlineSmall,
                 color = Color.Gray
             )
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(64.dp))
             Button(
                 onClick = onContinue,
-                modifier = Modifier.focusRequester(focusRequester),
-                scale = ButtonDefaults.scale(focusedScale = 1.08f),
-                shape = ButtonDefaults.shape(CircleShape),
-                colors = ButtonDefaults.colors(containerColor = Color(0xFF1E1E1E), contentColor = Color.White),
-                border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Color.White))),
-                contentPadding = PaddingValues(horizontal = 32.dp, vertical = 14.dp)
+                modifier = Modifier.width(280.dp).height(56.dp).onFocusChanged {
+                    if (it.isFocused) view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
+                },
+                colors = ButtonDefaults.colors(
+                    containerColor = Color.White, 
+                    contentColor = Color.Black,
+                    focusedContainerColor = Color(0xFF1E1E1E),
+                    focusedContentColor = Color.White
+                )
             ) {
-                Text("Start Configuration", style = MaterialTheme.typography.labelLarge)
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("GET STARTED", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                }
             }
         }
     }
@@ -78,65 +73,57 @@ fun OnboardingMenuScreen(
     onSelectStorage: () -> Unit,
     onFinish: () -> Unit
 ) {
-    val context = LocalContext.current
-    val dbHelper = remember { DatabaseHelper.getInstance(context) }
-    val currentUrl = dbHelper.getSetting("config_url", "Default Link Active")
-    val currentStorage = dbHelper.getSetting("storage_path", "AUTO (Recommended)")
-
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
+    val view = LocalView.current
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF0A0A0A))
-            .padding(horizontal = 56.dp, vertical = 48.dp)
+        modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A)),
+        contentAlignment = Alignment.Center
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Text("Initial Configuration", style = MaterialTheme.typography.displaySmall, color = Color.White)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Customize your experience or use defaults", color = Color.Gray, style = MaterialTheme.typography.bodyLarge)
+        Column(
+            modifier = Modifier.fillMaxWidth(0.8f),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Configuration",
+                style = MaterialTheme.typography.displayMedium,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(48.dp))
 
-            Spacer(modifier = Modifier.height(40.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(28.dp)
-            ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                 ConfigCard(
-                    title = "Media Source",
-                    subtitle = currentUrl,
+                    title = "Mega JSON URL",
+                    desc = "Set your custom configuration source",
                     iconRes = R.drawable.ic_sync,
-                    modifier = Modifier
-                        .weight(1f)
-                        .focusRequester(focusRequester),
-                    onClick = onSelectUrl
+                    onClick = onSelectUrl,
+                    modifier = Modifier.weight(1f)
                 )
-
                 ConfigCard(
-                    title = "Storage Location",
-                    subtitle = currentStorage,
+                    title = "Media Storage",
+                    desc = "Choose where to keep cached images",
                     iconRes = R.drawable.ic_filemanager,
-                    modifier = Modifier.weight(1f),
-                    onClick = onSelectStorage
+                    onClick = onSelectStorage,
+                    modifier = Modifier.weight(1f)
                 )
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(64.dp))
 
             Button(
                 onClick = onFinish,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                scale = ButtonDefaults.scale(focusedScale = 1.08f),
-                shape = ButtonDefaults.shape(CircleShape),
-                colors = ButtonDefaults.colors(containerColor = Color(0xFF1E1E1E), contentColor = Color.White),
-                border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Color.White))),
-                contentPadding = PaddingValues(horizontal = 40.dp, vertical = 14.dp)
+                modifier = Modifier.width(320.dp).height(56.dp).onFocusChanged {
+                    if (it.isFocused) view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
+                },
+                colors = ButtonDefaults.colors(
+                    containerColor = Color.White, 
+                    contentColor = Color.Black,
+                    focusedContainerColor = Color(0xFF1E1E1E),
+                    focusedContentColor = Color.White
+                )
             ) {
-                Text("Finish Setup & Launch", style = MaterialTheme.typography.labelLarge)
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("FINISH SETUP", fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -146,57 +133,40 @@ fun OnboardingMenuScreen(
 @Composable
 fun ConfigCard(
     title: String,
-    subtitle: String,
+    desc: String,
     iconRes: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var isFocused by remember { mutableStateOf(false) }
-
-    Surface(
+    val view = LocalView.current
+    Card(
         onClick = onClick,
-        modifier = modifier
-            .height(200.dp)
-            .onFocusChanged { isFocused = it.isFocused },
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(20.dp)),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f),
-        border = ClickableSurfaceDefaults.border(
-            focusedBorder = Border(BorderStroke(2.5.dp, Color.White))
-        ),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color(0xFF161616),
-            focusedContainerColor = Color(0xFF242424),
-            contentColor = Color.White,
+        modifier = modifier.height(180.dp).onFocusChanged {
+            if (it.isFocused) view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
+        },
+        colors = CardDefaults.colors(
+            containerColor = Color.White, 
+            contentColor = Color.Black,
+            focusedContainerColor = Color(0xFF1A1A1A),
             focusedContentColor = Color.White
-        )
+        ),
+        scale = CardDefaults.scale(focusedScale = 1.05f),
+        border = CardDefaults.border(focusedBorder = Border(androidx.compose.foundation.BorderStroke(2.dp, Color.White)))
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(28.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.Start
         ) {
             Icon(
                 painter = painterResource(id = iconRes),
-                contentDescription = title,
-                tint = if (isFocused) Color.Yellow else Color.White.copy(alpha = 0.8f),
-                modifier = Modifier.size(36.dp)
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+                tint = Color.DarkGray
             )
-
-            Column {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isFocused) Color.White.copy(alpha = 0.9f) else Color.Gray,
-                    maxLines = 1
-                )
-            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(text = title, style = MaterialTheme.typography.headlineSmall)
+            Text(text = desc, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -205,63 +175,73 @@ fun ConfigCard(
 @Composable
 fun SetupUrlScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val view = LocalView.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
     var urlText by remember { mutableStateOf(dbHelper.getSetting("config_url", "")) }
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
-    BackHandler { onBack() }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF0A0A0A))
-            .padding(64.dp),
+        modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A)),
         contentAlignment = Alignment.Center
     ) {
-        Column(modifier = Modifier.width(600.dp)) {
-            Text("Enter Config JSON URL", style = MaterialTheme.typography.headlineMedium, color = Color.White)
+        Column(
+            modifier = Modifier.width(600.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Enter Config JSON URL",
+                style = MaterialTheme.typography.displaySmall,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Leave empty to use the default MEGA source", color = Color.Gray)
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            TextField(
-                value = urlText,
-                onValueChange = { urlText = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester),
-                placeholder = { Text("https://mega.nz/file/...") },
-                singleLine = true,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color(0xFF1E1E1E),
-                    unfocusedContainerColor = Color(0xFF121212),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.Gray,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
-                ),
-                shape = RoundedCornerShape(12.dp)
+            Text(
+                text = "Leave empty to use the default MEGA source",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.Gray,
+                textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(48.dp))
+
+            // REFINED TEXT FIELD
+            androidx.compose.material3.TextField(
+                value = urlText,
+                onValueChange = { urlText = it },
+                placeholder = { Text("https://mega.nz/file/...", color = Color.DarkGray) },
+                modifier = Modifier.fillMaxWidth().height(64.dp),
+                colors = androidx.compose.material3.TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFF1A1A1A),
+                    unfocusedContainerColor = Color(0xFF1A1A1A),
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    cursorColor = Color.Yellow,
+                    focusedIndicatorColor = Color.Yellow
+                ),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
 
             Button(
                 onClick = {
                     dbHelper.saveSetting("config_url", urlText.trim())
                     onBack()
                 },
-                modifier = Modifier.fillMaxWidth(),
-                shape = ButtonDefaults.shape(CircleShape),
-                colors = ButtonDefaults.colors(containerColor = Color(0xFF1E1E1E), contentColor = Color.White),
-                border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Color.White))),
-                contentPadding = PaddingValues(vertical = 14.dp)
+                modifier = Modifier.fillMaxWidth().height(56.dp).onFocusChanged {
+                    if (it.isFocused) view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
+                },
+                colors = ButtonDefaults.colors(
+                    containerColor = Color.White, 
+                    contentColor = Color.Black,
+                    focusedContainerColor = Color(0xFF1E1E1E),
+                    focusedContentColor = Color.White
+                )
             ) {
-                Text("Save & Go Back", style = MaterialTheme.typography.labelLarge)
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("SAVE & GO BACK", fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -271,119 +251,121 @@ fun SetupUrlScreen(onBack: () -> Unit) {
 @Composable
 fun SetupStorageScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val view = LocalView.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
+    
+    var currentPath by remember { mutableStateOf(File(dbHelper.getSetting("cache_path", Environment.getExternalStorageDirectory().absolutePath))) }
+    var subfolders by remember { mutableStateOf(emptyList<File>()) }
 
-    var currentDir by remember { mutableStateOf(File("/storage")) }
-    if (!currentDir.exists()) currentDir = File("/")
-
-    var fileList by remember { mutableStateOf(emptyList<File>()) }
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(currentDir) {
-        val files = try {
-            currentDir.listFiles()?.filter { it.isDirectory && !it.isHidden }?.sortedBy { it.name.lowercase() } ?: emptyList()
-        } catch (e: Exception) {
-            emptyList()
-        }
-        fileList = files
-        try { focusRequester.requestFocus() } catch (e: Exception) {}
+    fun loadSubfolders(dir: File) {
+        try {
+            subfolders = dir.listFiles { file -> file.isDirectory }?.toList()?.sortedBy { it.name } ?: emptyList()
+        } catch (e: Exception) { subfolders = emptyList() }
     }
 
-    BackHandler {
-        val parent = currentDir.parentFile
-        if (parent != null && currentDir.absolutePath != "/") {
-            currentDir = parent
-        } else {
-            onBack()
-        }
-    }
+    LaunchedEffect(currentPath) { loadSubfolders(currentPath) }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF0A0A0A))
-            .padding(48.dp)
+        modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A))
     ) {
-        Column {
-            Text("Select Storage Location", style = MaterialTheme.typography.headlineMedium, color = Color.White)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Path: ${currentDir.absolutePath}", color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
+        Column(modifier = Modifier.fillMaxSize().padding(48.dp)) {
+            // HEADER
+            Text(
+                text = "Select Storage Location",
+                style = MaterialTheme.typography.displaySmall,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Path: ${currentPath.absolutePath}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray
+            )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
-            Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    item {
-                        FolderItem(
-                            name = ".. (Go Up)",
-                            isUpItem = true,
-                            isFocusedDefault = true,
-                            onClick = {
-                                val parent = currentDir.parentFile
-                                if (parent != null) currentDir = parent
-                            }
-                        )
-                    }
-                    items(fileList, key = { it.absolutePath }) { file ->
-                        FolderItem(
-                            name = file.name,
-                            isUpItem = false,
-                            onClick = { currentDir = file }
-                        )
+            Row(modifier = Modifier.fillMaxSize()) {
+                // LEFT SIDE: LIST
+                Column(modifier = Modifier.weight(1.5f)) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // GO UP item
+                        item {
+                            FolderItem(
+                                name = ".. (Go Up)",
+                                isParent = true,
+                                onClick = { currentPath.parentFile?.let { currentPath = it } }
+                            )
+                        }
+
+                        items(subfolders) { folder ->
+                            FolderItem(
+                                name = folder.name,
+                                isParent = false,
+                                onClick = { currentPath = folder }
+                            )
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.width(48.dp))
+                Spacer(modifier = Modifier.width(32.dp))
 
+                // RIGHT SIDE: ACTIONS
                 Column(
-                    modifier = Modifier.width(260.dp),
+                    modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Button(
                         onClick = {
-                            dbHelper.saveSetting("storage_path", currentDir.absolutePath)
+                            dbHelper.saveSetting("cache_path", currentPath.absolutePath)
                             onBack()
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = ButtonDefaults.shape(CircleShape),
-                        colors = ButtonDefaults.colors(containerColor = Color(0xFF1E1E1E), contentColor = Color.White),
-                        border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Color.White))),
-                        contentPadding = PaddingValues(vertical = 12.dp)
-                    ) {
-                        Text("Select This Folder", style = MaterialTheme.typography.labelMedium)
-                    }
-
-                    Button(
-                        onClick = {
-                            dbHelper.saveSetting("storage_path", "AUTO")
-                            onBack()
+                        modifier = Modifier.fillMaxWidth().height(56.dp).onFocusChanged {
+                            if (it.isFocused) view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = ButtonDefaults.shape(CircleShape),
-                        colors = ButtonDefaults.colors(containerColor = Color(0xFF141414), contentColor = Color.Gray),
-                        border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Color.White))),
-                        contentPadding = PaddingValues(vertical = 12.dp)
+                        colors = ButtonDefaults.colors(
+                            containerColor = Color.White, 
+                            contentColor = Color.Black,
+                            focusedContainerColor = Color(0xFF1E1E1E),
+                            focusedContentColor = Color.White
+                        )
                     ) {
-                        Text("Reset to AUTO", style = MaterialTheme.typography.labelMedium)
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("SELECT THIS FOLDER", fontWeight = FontWeight.Bold)
+                        }
                     }
-
-                    Spacer(modifier = Modifier.weight(1f))
 
                     OutlinedButton(
-                        onClick = onBack,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = ButtonDefaults.shape(CircleShape),
-                        border = ButtonDefaults.border(
-                            border = Border(BorderStroke(1.dp, Color.Gray)),
-                            focusedBorder = Border(BorderStroke(2.dp, Color.White))
-                        ),
-                        contentPadding = PaddingValues(vertical = 12.dp)
+                        onClick = {
+                            dbHelper.saveSetting("cache_path", context.cacheDir.absolutePath)
+                            onBack()
+                        },
+                        modifier = Modifier.fillMaxWidth().height(56.dp).onFocusChanged {
+                            if (it.isFocused) view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
+                        },
+                        colors = ButtonDefaults.colors(
+                            containerColor = Color.White, 
+                            contentColor = Color.Black,
+                            focusedContainerColor = Color.Transparent,
+                            focusedContentColor = Color.White
+                        )
                     ) {
-                        Text("Back to Menu", color = Color.White, style = MaterialTheme.typography.labelMedium)
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("RESET TO AUTO")
+                        }
                     }
+                    
+                    Spacer(modifier = Modifier.weight(1f))
+                    
+                    // Simple text indicator that back is available via remote
+                    Text(
+                        text = "Press BACK on remote to cancel", 
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.DarkGray,
+                        modifier = Modifier.align(Alignment.End)
+                    )
                 }
             }
         }
@@ -394,46 +376,37 @@ fun SetupStorageScreen(onBack: () -> Unit) {
 @Composable
 fun FolderItem(
     name: String,
-    isUpItem: Boolean = false,
-    isFocusedDefault: Boolean = false,
+    isParent: Boolean,
     onClick: () -> Unit
 ) {
-    val focusRequester = remember { FocusRequester() }
-    var isFocused by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        if (isFocusedDefault) focusRequester.requestFocus()
-    }
-
+    val view = LocalView.current
     Surface(
         onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .focusRequester(focusRequester)
-            .onFocusChanged { isFocused = it.isFocused },
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
-        border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Color.White))),
+        modifier = Modifier.fillMaxWidth().height(56.dp).onFocusChanged {
+            if (it.isFocused) view.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT)
+        },
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color(0xFF141414),
-            focusedContainerColor = Color(0xFF262626)
+            containerColor = Color.White, 
+            contentColor = Color.Black,
+            focusedContainerColor = Color(0xFF1A1A1A),
+            focusedContentColor = Color.White
         )
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                painter = if (isUpItem) painterResource(id = R.drawable.ic_back) else painterResource(id = R.drawable.ic_filemanager),
+                painter = painterResource(id = if (isParent) R.drawable.ic_back else R.drawable.ic_filemanager),
                 contentDescription = null,
-                tint = if (isFocused) Color.Yellow else Color.White.copy(alpha = 0.8f),
                 modifier = Modifier.size(24.dp)
             )
             Spacer(modifier = Modifier.width(16.dp))
             Text(
                 text = name,
-                color = Color.White,
-                style = MaterialTheme.typography.bodyLarge
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
             )
         }
     }
